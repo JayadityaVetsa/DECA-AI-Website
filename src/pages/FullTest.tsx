@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,8 +6,6 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Brain, 
   Clock, 
@@ -15,32 +14,19 @@ import {
   RotateCcw,
   Home,
   MessageCircle,
-  Send,
-  Bot,
-  User
+  AlertTriangle
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 
-const Test = () => {
+const FullTest = () => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [answers, setAnswers] = useState<string[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes
   const [testStarted, setTestStarted] = useState(false);
-  const [tutorMessages, setTutorMessages] = useState<Array<{role: 'user' | 'ai', content: string}>>([]);
-  const [tutorInput, setTutorInput] = useState("");
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
-  // Sample AI-generated questions
+  // Sample AI-generated questions (same as practice test)
   const questions = [
     {
       id: 1,
@@ -181,36 +167,11 @@ const Test = () => {
     setShowResults(false);
     setTimeLeft(1800);
     setTestStarted(false);
-    setTutorMessages([]);
-  };
-
-  const handleTutorSend = () => {
-    if (!tutorInput.trim()) return;
-    
-    const userMessage = tutorInput.trim();
-    setTutorMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setTutorInput("");
-    
-    // Simulate AI response after a short delay
-    setTimeout(() => {
-      const currentQ = questions[currentQuestion];
-      let aiResponse = "";
-      
-      if (userMessage.toLowerCase().includes('hint')) {
-        aiResponse = `Here's a hint for this ${currentQ.category} question: Think about what type of segmentation focuses on personal values and lifestyle choices. The key is understanding what motivates environmentally conscious consumers.`;
-      } else if (userMessage.toLowerCase().includes('explain')) {
-        aiResponse = `This question is testing your knowledge of market segmentation in ${currentQ.category}. The different types of segmentation are: Geographic (location), Demographic (age, income), Psychographic (lifestyle, values), and Behavioral (purchase patterns). Which one would best reach people who care about the environment?`;
-      } else {
-        aiResponse = `I can help you with this ${currentQ.category} question! Try thinking about what drives environmentally conscious consumers - is it where they live, how old they are, what they value, or how often they buy? Feel free to ask for a hint or explanation of the concepts!`;
-      }
-      
-      setTutorMessages(prev => [...prev, { role: 'ai', content: aiResponse }]);
-    }, 1000);
   };
 
   if (!testStarted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50">
         {/* Navigation */}
         <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -236,52 +197,55 @@ const Test = () => {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <Card className="border-0 shadow-xl">
             <CardHeader className="text-center pb-8">
-              <CardTitle className="text-3xl font-bold mb-4">
-                DECA Practice Test (with AI Tutor)
+              <CardTitle className="text-3xl font-bold mb-4 text-red-600">
+                DECA Full Test (No AI Assistance)
               </CardTitle>
               <CardDescription className="text-lg">
-                Test your knowledge with AI-generated questions and get help from your AI tutor
+                Experience a real test environment without any AI help or hints
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600 mb-2">5</div>
+                <div className="p-4 bg-red-50 rounded-lg">
+                  <div className="text-2xl font-bold text-red-600 mb-2">5</div>
                   <div className="text-sm text-gray-600">Questions</div>
                 </div>
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600 mb-2">30</div>
+                <div className="p-4 bg-orange-50 rounded-lg">
+                  <div className="text-2xl font-bold text-orange-600 mb-2">30</div>
                   <div className="text-sm text-gray-600">Minutes</div>
                 </div>
-                <div className="p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600 mb-2">AI Tutor</div>
-                  <div className="text-sm text-gray-600">Available</div>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="text-2xl font-bold text-gray-600 mb-2">No AI</div>
+                  <div className="text-sm text-gray-600">Full Focus</div>
                 </div>
               </div>
 
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <h3 className="font-semibold text-green-800 mb-2">Practice Mode Features:</h3>
-                <ul className="text-sm text-green-700 space-y-1">
-                  <li>• AI tutor available during the test for hints and explanations</li>
-                  <li>• You have 30 minutes to complete 5 questions</li>
-                  <li>• Questions cover Marketing, Finance, Entrepreneurship, and Business Law</li>
-                  <li>• You can navigate between questions and change answers</li>
-                  <li>• Detailed explanations provided after submission</li>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                  <h3 className="font-semibold text-red-800">Full Test Mode:</h3>
+                </div>
+                <ul className="text-sm text-red-700 space-y-1">
+                  <li>• No AI tutor assistance available during the test</li>
+                  <li>• Simulates real DECA testing conditions</li>
+                  <li>• Once submitted, you cannot retake with the same questions</li>
+                  <li>• Focus on demonstrating your true knowledge</li>
+                  <li>• Results show explanations only after completion</li>
                 </ul>
               </div>
 
               <div className="text-center pt-4 space-y-4">
                 <Button 
                   size="lg" 
-                  className="px-12 py-6 text-lg mr-4"
+                  className="px-12 py-6 text-lg bg-red-600 hover:bg-red-700"
                   onClick={() => setTestStarted(true)}
                 >
-                  Start Practice Test
+                  Start Full Test
                 </Button>
                 <div className="text-sm text-gray-600">
-                  Want a real test experience? Try the{" "}
-                  <Link to="/full-test" className="text-blue-600 hover:underline">
-                    Full Test (No AI Assistance)
+                  Need practice first? Try the{" "}
+                  <Link to="/test" className="text-blue-600 hover:underline">
+                    Practice Test (with AI Tutor)
                   </Link>
                 </div>
               </div>
@@ -292,6 +256,7 @@ const Test = () => {
     );
   }
 
+  // Results section (same as practice test but with different styling)
   if (showResults) {
     const score = calculateScore();
     const correctAnswers = answers.filter((answer, index) => 
@@ -299,7 +264,7 @@ const Test = () => {
     ).length;
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50">
         {/* Navigation */}
         <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -330,8 +295,8 @@ const Test = () => {
           {/* Score Summary */}
           <Card className="border-0 shadow-xl mb-8">
             <CardHeader className="text-center">
-              <CardTitle className="text-3xl font-bold mb-2">
-                Test Complete! 🎉
+              <CardTitle className="text-3xl font-bold mb-2 text-red-600">
+                Full Test Complete! 🎯
               </CardTitle>
               <div className="text-6xl font-bold mb-4">
                 <span className={score >= 80 ? 'text-green-600' : score >= 60 ? 'text-yellow-600' : 'text-red-600'}>
@@ -339,7 +304,7 @@ const Test = () => {
                 </span>
               </div>
               <CardDescription className="text-lg">
-                You got {correctAnswers} out of {questions.length} questions correct
+                You got {correctAnswers} out of {questions.length} questions correct without AI assistance
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -431,10 +396,12 @@ const Test = () => {
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
-            <Button onClick={restartTest} size="lg" className="px-8">
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Take Another Test
-            </Button>
+            <Link to="/test">
+              <Button size="lg" className="px-8">
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Try Practice Mode
+              </Button>
+            </Link>
             <Link to="/tutor">
               <Button variant="outline" size="lg" className="px-8">
                 <MessageCircle className="h-4 w-4 mr-2" />
@@ -454,7 +421,7 @@ const Test = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50">
       {/* Navigation */}
       <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -466,88 +433,11 @@ const Test = () => {
               </span>
             </Link>
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-gray-600">
+              <div className="flex items-center space-x-2 text-red-600">
                 <Clock className="h-4 w-4" />
                 <span className="font-mono text-lg">{formatTime(timeLeft)}</span>
               </div>
-              
-              {/* AI Tutor Sheet */}
-              <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Bot className="h-4 w-4 mr-2" />
-                    AI Tutor
-                  </Button>
-                </SheetTrigger>
-                <SheetContent className="w-[400px] sm:w-[540px]">
-                  <SheetHeader>
-                    <SheetTitle className="flex items-center gap-2">
-                      <Bot className="h-5 w-5 text-blue-600" />
-                      AI Tutor Assistant
-                    </SheetTitle>
-                    <SheetDescription>
-                      Get help with the current question. Ask for hints, explanations, or clarifications!
-                    </SheetDescription>
-                  </SheetHeader>
-                  
-                  <div className="flex flex-col h-[calc(100vh-120px)] mt-6">
-                    <ScrollArea className="flex-1 pr-4">
-                      <div className="space-y-4">
-                        {tutorMessages.length === 0 && (
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <p className="text-blue-800 text-sm">
-                              👋 Hi! I'm here to help you with this {questions[currentQuestion]?.category} question. 
-                              You can ask me for:
-                            </p>
-                            <ul className="text-blue-700 text-sm mt-2 space-y-1">
-                              <li>• Hints about the question</li>
-                              <li>• Explanations of concepts</li>
-                              <li>• Clarification of terms</li>
-                            </ul>
-                          </div>
-                        )}
-                        
-                        {tutorMessages.map((message, index) => (
-                          <div key={index} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] rounded-lg p-3 ${
-                              message.role === 'user' 
-                                ? 'bg-blue-600 text-white' 
-                                : 'bg-gray-100 text-gray-900'
-                            }`}>
-                              <div className="flex items-center gap-2 mb-1">
-                                {message.role === 'user' ? (
-                                  <User className="h-4 w-4" />
-                                ) : (
-                                  <Bot className="h-4 w-4" />
-                                )}
-                                <span className="text-xs font-medium">
-                                  {message.role === 'user' ? 'You' : 'AI Tutor'}
-                                </span>
-                              </div>
-                              <p className="text-sm">{message.content}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                    
-                    <div className="flex gap-2 mt-4">
-                      <Input
-                        placeholder="Ask for help with this question..."
-                        value={tutorInput}
-                        onChange={(e) => setTutorInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleTutorSend()}
-                        className="flex-1"
-                      />
-                      <Button size="sm" onClick={handleTutorSend} disabled={!tutorInput.trim()}>
-                        <Send className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
-              
-              <Button variant="outline" onClick={handleSubmitTest}>
+              <Button variant="outline" onClick={handleSubmitTest} className="border-red-200 text-red-600 hover:bg-red-50">
                 Submit Test
               </Button>
             </div>
@@ -580,6 +470,9 @@ const Test = () => {
                   questions[currentQuestion].difficulty === 'Intermediate' ? 'default' : 'destructive'
                 }>
                   {questions[currentQuestion].difficulty}
+                </Badge>
+                <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">
+                  No AI Help
                 </Badge>
               </div>
               <span className="text-sm text-gray-500">Question {currentQuestion + 1}</span>
@@ -627,7 +520,7 @@ const Test = () => {
                 onClick={() => setCurrentQuestion(index)}
                 className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
                   index === currentQuestion
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-red-600 text-white'
                     : answers[index]
                       ? 'bg-green-100 text-green-800 border border-green-300'
                       : 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200'
@@ -641,7 +534,7 @@ const Test = () => {
           <Button 
             onClick={handleNextQuestion}
             disabled={!selectedAnswer}
-            className="px-8"
+            className="px-8 bg-red-600 hover:bg-red-700"
           >
             {currentQuestion === questions.length - 1 ? 'Submit Test' : 'Next'}
           </Button>
@@ -651,4 +544,4 @@ const Test = () => {
   );
 };
 
-export default Test;
+export default FullTest;

@@ -14,7 +14,8 @@ import {
   BookOpen,
   Users,
   ChevronRight,
-  BarChart3
+  BarChart3,
+  AlertTriangle
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -28,9 +29,9 @@ const Dashboard = () => {
   });
 
   const recentTests = [
-    { id: 1, category: "Marketing", score: 85, date: "2024-06-20", questions: 25 },
-    { id: 2, category: "Finance", score: 72, date: "2024-06-19", questions: 30 },
-    { id: 3, category: "Entrepreneurship", score: 91, date: "2024-06-18", questions: 20 }
+    { id: 1, category: "Marketing", score: 85, date: "2024-06-20", questions: 25, type: "Practice" },
+    { id: 2, category: "Finance", score: 72, date: "2024-06-19", questions: 30, type: "Full Test" },
+    { id: 3, category: "Entrepreneurship", score: 91, date: "2024-06-18", questions: 20, type: "Practice" }
   ];
 
   const weakAreas = [
@@ -61,6 +62,9 @@ const Dashboard = () => {
             <div className="flex items-center space-x-4">
               <Link to="/test">
                 <Button variant="ghost">Practice Test</Button>
+              </Link>
+              <Link to="/full-test">
+                <Button variant="ghost">Full Test</Button>
               </Link>
               <Link to="/tutor">
                 <Button variant="ghost">AI Tutor</Button>
@@ -143,15 +147,23 @@ const Dashboard = () => {
                   Quick Actions
                 </CardTitle>
                 <CardDescription>
-                  Jump into your next learning activity
+                  Choose your learning mode and jump in
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Link to="/test">
-                    <Button className="w-full h-20 flex flex-col gap-2" variant="outline">
+                    <Button className="w-full h-24 flex flex-col gap-2 bg-blue-600 hover:bg-blue-700" variant="default">
                       <BookOpen className="h-6 w-6" />
-                      Start Practice Test
+                      <span className="font-semibold">Practice Test</span>
+                      <span className="text-xs opacity-90">With AI Tutor Help</span>
+                    </Button>
+                  </Link>
+                  <Link to="/full-test">
+                    <Button className="w-full h-24 flex flex-col gap-2 bg-red-600 hover:bg-red-700" variant="default">
+                      <AlertTriangle className="h-6 w-6" />
+                      <span className="font-semibold">Full Test</span>
+                      <span className="text-xs opacity-90">No AI Assistance</span>
                     </Button>
                   </Link>
                   <Link to="/tutor">
@@ -163,10 +175,6 @@ const Dashboard = () => {
                   <Button className="w-full h-20 flex flex-col gap-2" variant="outline">
                     <BarChart3 className="h-6 w-6" />
                     View Analytics
-                  </Button>
-                  <Button className="w-full h-20 flex flex-col gap-2" variant="outline">
-                    <Users className="h-6 w-6" />
-                    Join Community
                   </Button>
                 </div>
               </CardContent>
@@ -185,12 +193,20 @@ const Dashboard = () => {
                   {recentTests.map((test) => (
                     <div key={test.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                       <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <BookOpen className="h-6 w-6 text-blue-600" />
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                          test.type === 'Practice' ? 'bg-blue-100' : 'bg-red-100'
+                        }`}>
+                          {test.type === 'Practice' ? (
+                            <BookOpen className={`h-6 w-6 ${test.type === 'Practice' ? 'text-blue-600' : 'text-red-600'}`} />
+                          ) : (
+                            <AlertTriangle className="h-6 w-6 text-red-600" />
+                          )}
                         </div>
                         <div>
                           <p className="font-semibold text-gray-900">{test.category}</p>
-                          <p className="text-sm text-gray-600">{test.questions} questions • {test.date}</p>
+                          <p className="text-sm text-gray-600">
+                            {test.questions} questions • {test.date} • {test.type}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">

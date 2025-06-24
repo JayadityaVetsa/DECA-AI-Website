@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,7 +66,9 @@ const Index = () => {
             <div className="flex items-center space-x-4">
               {!isLoggedIn ? (
                 <>
-                  <Button variant="ghost">Sign In</Button>
+                  <Link to="/auth">
+                    <Button variant="ghost">Sign In</Button>
+                  </Link>
                   <Button onClick={() => setIsLoggedIn(true)}>Get Started</Button>
                 </>
               ) : (

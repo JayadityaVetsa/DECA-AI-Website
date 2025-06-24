@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -17,16 +16,48 @@ import {
   BarChart3,
   AlertTriangle
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { auth, db } from "../lib/firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
 const Dashboard = () => {
-  const [user] = useState({
-    name: "Alex Thompson",
-    level: "Intermediate",
-    streak: 12,
-    totalQuestions: 247,
-    accuracy: 78
-  });
+  const [user, setUser] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        try {
+          const docRef = doc(db, "users", firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setUserData(docSnap.data());
+          } else {
+            setError("User data not found.");
+          }
+        } catch (err: any) {
+          setError("Failed to fetch user data.");
+        }
+        setLoading(false);
+      } else {
+        setUser(null);
+        setUserData(null);
+        setLoading(false);
+        navigate("/auth");
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
+
+  const handleSignOut = async () => {
+    await signOut(auth);
+    navigate("/auth");
+  };
 
   const recentTests = [
     { id: 1, category: "Marketing", score: 85, date: "2024-06-20", questions: 25, type: "Practice" },
@@ -46,6 +77,22 @@ const Dashboard = () => {
     { title: "Finance Focused", icon: "💰", completed: false },
     { title: "Community Helper", icon: "🤝", completed: true }
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="text-xl text-gray-700">Loading your dashboard...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="text-xl text-red-500">{error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -69,7 +116,7 @@ const Dashboard = () => {
               <Link to="/tutor">
                 <Button variant="ghost">AI Tutor</Button>
               </Link>
-              <Button variant="outline">Profile</Button>
+              <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
             </div>
           </div>
         </div>
@@ -79,10 +126,15 @@ const Dashboard = () => {
         {/* Welcome Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome back, {user.name}! 👋
+            Welcome back, {userData?.name || user?.displayName || "DECA Member"}! 👋
           </h1>
           <p className="text-gray-600">
-            You're on a {user.streak}-day streak! Keep up the great momentum.
+            {userData && (
+              <>
+                <span className="font-semibold">Grade:</span> {userData.grade} &nbsp;|&nbsp;
+                <span className="font-semibold">Event:</span> {userData.event}
+              </>
+            )}
           </p>
         </div>
 
@@ -93,7 +145,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Total Questions</p>
-                  <p className="text-2xl font-bold text-gray-900">{user.totalQuestions}</p>
+                  <p className="text-2xl font-bold text-gray-900">{userData?.totalQuestions || 0}</p>
                 </div>
                 <BookOpen className="h-8 w-8 text-blue-600" />
               </div>
@@ -105,7 +157,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Accuracy Rate</p>
-                  <p className="text-2xl font-bold text-gray-900">{user.accuracy}%</p>
+                  <p className="text-2xl font-bold text-gray-900">{userData?.accuracy || 0}%</p>
                 </div>
                 <Target className="h-8 w-8 text-green-600" />
               </div>
@@ -117,7 +169,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Current Streak</p>
-                  <p className="text-2xl font-bold text-gray-900">{user.streak} days</p>
+                  <p className="text-2xl font-bold text-gray-900">{userData?.streak || 0} days</p>
                 </div>
                 <Award className="h-8 w-8 text-orange-600" />
               </div>
@@ -129,7 +181,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Skill Level</p>
-                  <p className="text-2xl font-bold text-gray-900">{user.level}</p>
+                  <p className="text-2xl font-bold text-gray-900">{userData?.level || "Intermediate"}</p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-purple-600" />
               </div>

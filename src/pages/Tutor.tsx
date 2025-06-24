@@ -1,7 +1,6 @@
-
 import { useState, useRef, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,9 +14,13 @@ import {
   Home,
   Lightbulb,
   Target,
-  TrendingUp
+  TrendingUp,
+  LogOut
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { askGemini } from "../lib/gemini";
+import { auth } from "../lib/firebase";
+import { signOut } from "firebase/auth";
 
 interface Message {
   id: number;
@@ -26,6 +29,51 @@ interface Message {
   timestamp: Date;
   category?: string;
 }
+
+const EVENTS = [
+  {
+    name: "Marketing",
+    pis: [
+      "Market Segmentation",
+      "Marketing Mix",
+      "Brand Positioning",
+      "Consumer Behavior",
+      "Digital Marketing"
+    ]
+  },
+  {
+    name: "Finance",
+    pis: [
+      "Budgeting",
+      "Financial Ratios",
+      "Investment Analysis",
+      "Risk Management",
+      "Financial Planning"
+    ]
+  },
+  {
+    name: "Entrepreneurship",
+    pis: [
+      "Business Plan",
+      "Opportunity Recognition",
+      "Risk Management",
+      "Market Research",
+      "Business Model Canvas"
+    ]
+  },
+  {
+    name: "Business Management",
+    pis: [
+      "Leadership",
+      "Strategic Planning",
+      "Operations Management",
+      "Human Resources",
+      "Quality Control"
+    ]
+  }
+];
+
+const DECA_CONTEXT = `You are a DECA competition tutor. Answer questions using official DECA performance indicators and event knowledge. Be concise, clear, and helpful for high school students. If the question is about a specific event, use relevant terminology.`;
 
 const Tutor = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -38,7 +86,10 @@ const Tutor = () => {
   ]);
   const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(EVENTS[0].name);
+  const [selectedPI, setSelectedPI] = useState(EVENTS[0].pis[0]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -48,6 +99,12 @@ const Tutor = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Update PI when event changes
+  useEffect(() => {
+    const eventObj = EVENTS.find(e => e.name === selectedEvent);
+    if (eventObj) setSelectedPI(eventObj.pis[0]);
+  }, [selectedEvent]);
+
   const quickTopics = [
     { title: "Marketing Mix (4 Ps)", category: "Marketing", emoji: "📈" },
     { title: "Financial Ratios", category: "Finance", emoji: "💰" },
@@ -56,14 +113,6 @@ const Tutor = () => {
     { title: "Supply & Demand", category: "Economics", emoji: "📊" },
     { title: "Leadership Styles", category: "Management", emoji: "👥" }
   ];
-
-  const sampleResponses: { [key: string]: string } = {
-    "marketing mix": "Great question about the Marketing Mix! The 4 Ps are:\n\n🎯 **Product**: What you're selling (goods/services, features, quality, branding)\n💰 **Price**: How much you charge (pricing strategy, discounts, payment terms)\n📍 **Place**: Where and how you sell (distribution channels, locations, logistics)\n📢 **Promotion**: How you communicate value (advertising, PR, sales promotion, digital marketing)\n\nThese work together to create your marketing strategy. Which P would you like to explore deeper?",
-    "financial ratios": "Financial ratios are key tools for analyzing business performance! Here are the main categories:\n\n📊 **Liquidity Ratios** (Can you pay short-term debts?)\n• Current Ratio = Current Assets ÷ Current Liabilities\n• Quick Ratio = (Current Assets - Inventory) ÷ Current Liabilities\n\n💪 **Profitability Ratios** (How profitable are you?)\n• Gross Profit Margin = (Revenue - COGS) ÷ Revenue\n• Net Profit Margin = Net Income ÷ Revenue\n\n⚡ **Efficiency Ratios** (How well do you use assets?)\n• Inventory Turnover = COGS ÷ Average Inventory\n• Asset Turnover = Revenue ÷ Total Assets\n\nWant me to walk through an example calculation?",
-    "business model canvas": "The Business Model Canvas is a powerful one-page tool for designing and analyzing business models! It has 9 key building blocks:\n\n👥 **Customer Segments**: Who are your target customers?\n💝 **Value Propositions**: What unique value do you offer?\n📢 **Channels**: How do you reach customers?\n🤝 **Customer Relationships**: How do you interact with customers?\n💰 **Revenue Streams**: How do you make money?\n🔑 **Key Resources**: What assets do you need?\n⚡ **Key Activities**: What key things must you do?\n🤝 **Key Partnerships**: Who are your strategic partners?\n💸 **Cost Structure**: What are your main costs?\n\nWould you like me to help you fill out a canvas for a specific business idea?",
-    "swot analysis": "SWOT Analysis is a strategic planning tool that evaluates four key areas:\n\n💪 **Strengths** (Internal, Positive)\n• What advantages do you have?\n• What do you do well?\n• What unique resources do you have?\n\n⚠️ **Weaknesses** (Internal, Negative)\n• What could you improve?\n• Where do you have fewer resources?\n• What are others doing better?\n\n🌟 **Opportunities** (External, Positive)\n• What trends could benefit you?\n• What market gaps exist?\n• What technology changes help you?\n\n⚡ **Threats** (External, Negative)\n• What trends could hurt you?\n• What is your competition doing?\n• What obstacles do you face?\n\nSWOT helps you develop strategies that leverage strengths and opportunities while addressing weaknesses and threats. Want to practice with a real example?",
-    "supply and demand": "Supply and Demand are fundamental economic forces that determine market prices!\n\n📈 **Demand**: Consumer willingness and ability to buy\n• Higher price → Lower quantity demanded\n• Lower price → Higher quantity demanded\n• Factors affecting demand: income, preferences, substitutes, population\n\n📊 **Supply**: Producer willingness and ability to sell\n• Higher price → Higher quantity supplied\n• Lower price → Lower quantity supplied\n• Factors affecting supply: production costs, technology, number of sellers\n\n⚖️ **Market Equilibrium**: Where supply and demand curves intersect\n• Shortage occurs when demand > supply (prices rise)\n• Surplus occurs when supply > demand (prices fall)\n\nThis explains why concert tickets are expensive (high demand, limited supply) but water is cheap (abundant supply). What real-world example would you like to analyze?"
-  };
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
@@ -79,28 +128,10 @@ const Tutor = () => {
     setInputMessage("");
     setIsTyping(true);
 
-    // Simulate AI thinking time
-    setTimeout(() => {
-      const lowerInput = inputMessage.toLowerCase();
-      let aiResponse = "That's a great question! Let me help you understand that concept better. ";
-
-      // Simple response matching
-      Object.keys(sampleResponses).forEach(key => {
-        if (lowerInput.includes(key)) {
-          aiResponse = sampleResponses[key];
-        }
-      });
-
-      // Default responses for common question types
-      if (lowerInput.includes("how") || lowerInput.includes("what") || lowerInput.includes("why")) {
-        if (!Object.keys(sampleResponses).some(key => lowerInput.includes(key))) {
-          aiResponse += "Could you be more specific about which DECA topic you'd like to explore? I can help with Marketing, Finance, Entrepreneurship, Business Law, Economics, and Management concepts. Try asking about specific topics like 'marketing mix', 'financial ratios', or 'business model canvas'.";
-        }
-      } else if (lowerInput.includes("practice") || lowerInput.includes("test") || lowerInput.includes("question")) {
-        aiResponse = "I'd be happy to help you practice! Here's a sample question:\n\n**Marketing Scenario**: A startup coffee shop wants to differentiate itself from Starbucks. What positioning strategy would you recommend?\n\nA) Cost leadership - compete on lower prices\nB) Focus strategy - target specific customer segment\nC) Differentiation - unique value proposition\nD) Market penetration - aggressive expansion\n\nTake your time to think about it, then tell me your answer and reasoning!";
-      } else if (lowerInput.includes("help") || lowerInput.includes("stuck") || lowerInput.includes("confused")) {
-        aiResponse = "I'm here to help! Here are some ways I can assist you:\n\n📚 **Concept Explanation**: Ask me about any DECA topic\n🧠 **Practice Problems**: I can create custom scenarios\n💡 **Study Tips**: Learn effective preparation strategies\n🎯 **Test Strategies**: Master multiple choice and case study approaches\n\nWhat specific area would you like to focus on?";
-      }
+    try {
+      // Add event/PI context to the question
+      const context = `${DECA_CONTEXT}\n\nEvent: ${selectedEvent}\nPerformance Indicator: ${selectedPI}`;
+      const aiResponse = await askGemini(inputMessage, context);
 
       const aiMessage: Message = {
         id: messages.length + 2,
@@ -110,8 +141,17 @@ const Tutor = () => {
       };
 
       setMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: messages.length + 2,
+        content: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.",
+        sender: 'ai',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleQuickTopic = (topic: string) => {
@@ -123,6 +163,11 @@ const Tutor = () => {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handleSignOut = async () => {
+    await signOut(auth);
+    navigate("/auth");
   };
 
   return (
@@ -137,31 +182,35 @@ const Tutor = () => {
                 DECA AI Platform
               </span>
             </Link>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               <Link to="/dashboard">
-                <Button variant="ghost">
+                <Button variant="ghost" size="sm" className="hidden sm:flex">
                   <Home className="h-4 w-4 mr-2" />
                   Dashboard
                 </Button>
               </Link>
               <Link to="/test">
-                <Button variant="ghost">
+                <Button variant="ghost" size="sm" className="hidden sm:flex">
                   <BookOpen className="h-4 w-4 mr-2" />
                   Practice Test
                 </Button>
               </Link>
+              <Button variant="outline" size="sm" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </Button>
             </div>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
           {/* Sidebar with Quick Topics */}
           <div className="lg:col-span-1 space-y-6">
             <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <Lightbulb className="h-5 w-5 text-yellow-600" />
                   Quick Topics
                 </CardTitle>
@@ -171,7 +220,7 @@ const Tutor = () => {
                   <Button
                     key={index}
                     variant="ghost"
-                    className="w-full justify-start h-auto p-3 text-left hover:bg-blue-50"
+                    className="w-full justify-start h-auto p-3 text-left hover:bg-blue-50 transition-colors"
                     onClick={() => handleQuickTopic(topic.title)}
                   >
                     <div className="flex items-center space-x-3">
@@ -189,23 +238,23 @@ const Tutor = () => {
             </Card>
 
             <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5 text-green-600" />
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
                   Study Tips
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="flex items-start space-x-2">
-                  <TrendingUp className="h-4 w-4 text-blue-600 mt-0.5" />
+                  <TrendingUp className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                   <span>Practice with real business scenarios daily</span>
                 </div>
                 <div className="flex items-start space-x-2">
-                  <MessageCircle className="h-4 w-4 text-purple-600 mt-0.5" />
+                  <MessageCircle className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
                   <span>Ask specific questions to get detailed explanations</span>
                 </div>
                 <div className="flex items-start space-x-2">
-                  <BookOpen className="h-4 w-4 text-orange-600 mt-0.5" />
+                  <BookOpen className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
                   <span>Connect concepts to current business events</span>
                 </div>
               </CardContent>
@@ -213,20 +262,52 @@ const Tutor = () => {
           </div>
 
           {/* Main Chat Area */}
-          <div className="lg:col-span-3">
-            <Card className="border-0 shadow-xl h-[600px] flex flex-col">
-              <CardHeader className="border-b">
-                <CardTitle className="flex items-center gap-2">
-                  <Bot className="h-6 w-6 text-blue-600" />
-                  AI DECA Tutor
-                  <Badge className="ml-auto">Always Available</Badge>
-                </CardTitle>
+          <div className="lg:col-span-3 flex flex-col h-[75vh] lg:h-[80vh] min-h-[600px]">
+            <Card className="border-0 shadow-xl flex flex-col h-full">
+              <CardHeader className="border-b pb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Bot className="h-6 w-6 text-blue-600" />
+                    AI DECA Tutor
+                    <Badge className="ml-2 bg-green-100 text-green-800 hover:bg-green-100">Always Available</Badge>
+                  </CardTitle>
+                </div>
+                
+                {/* Focus Area integrated into header */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Event Focus</label>
+                    <select
+                      className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      value={selectedEvent}
+                      onChange={e => setSelectedEvent(e.target.value)}
+                      disabled={isTyping}
+                    >
+                      {EVENTS.map(ev => (
+                        <option key={ev.name} value={ev.name}>{ev.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Performance Indicator</label>
+                    <select
+                      className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      value={selectedPI}
+                      onChange={e => setSelectedPI(e.target.value)}
+                      disabled={isTyping}
+                    >
+                      {EVENTS.find(ev => ev.name === selectedEvent)?.pis.map(pi => (
+                        <option key={pi} value={pi}>{pi}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </CardHeader>
 
               {/* Messages Area */}
-              <CardContent className="flex-1 p-0">
-                <ScrollArea className="h-full p-4">
-                  <div className="space-y-4">
+              <CardContent className="flex-1 p-0 bg-gradient-to-b from-white via-blue-50 to-purple-50">
+                <ScrollArea className="h-full p-4" style={{ scrollbarWidth: 'thin' }}>
+                  <div className="space-y-4 pr-4">
                     {messages.map((message) => (
                       <div
                         key={message.id}
@@ -234,7 +315,7 @@ const Tutor = () => {
                           message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
                         }`}
                       >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                           message.sender === 'user' 
                             ? 'bg-blue-600 text-white' 
                             : 'bg-purple-100 text-purple-600'
@@ -244,17 +325,17 @@ const Tutor = () => {
                             <Bot className="h-4 w-4" />
                           }
                         </div>
-                        <div className={`max-w-[80%] ${
+                        <div className={`max-w-[85%] ${
                           message.sender === 'user' ? 'text-right' : 'text-left'
                         }`}>
-                          <div className={`inline-block p-3 rounded-lg ${
+                          <div className={`inline-block p-3 rounded-lg shadow-sm ${
                             message.sender === 'user'
                               ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 text-gray-900'
+                              : 'bg-white text-gray-900 border border-gray-200'
                           }`}>
-                            <div className="whitespace-pre-wrap">{message.content}</div>
+                            <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.content}</div>
                           </div>
-                          <div className="text-xs text-gray-500 mt-1">
+                          <div className="text-xs text-gray-400 mt-1 text-right">
                             {message.timestamp.toLocaleTimeString([], { 
                               hour: '2-digit', 
                               minute: '2-digit' 
@@ -263,10 +344,9 @@ const Tutor = () => {
                         </div>
                       </div>
                     ))}
-                    
                     {isTyping && (
                       <div className="flex items-start space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
                           <Bot className="h-4 w-4" />
                         </div>
                         <div className="bg-gray-100 text-gray-900 p-3 rounded-lg">
@@ -283,21 +363,22 @@ const Tutor = () => {
                 </ScrollArea>
               </CardContent>
 
-              {/* Input Area */}
-              <div className="border-t p-4">
+              {/* Input Area (always visible) */}
+              <div className="border-t p-4 bg-white sticky bottom-0 z-10">
                 <div className="flex space-x-2">
                   <Input
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Ask me anything about DECA topics, request practice questions, or get study help..."
-                    className="flex-1"
+                    className="flex-1 text-sm"
                     disabled={isTyping}
                   />
                   <Button 
                     onClick={handleSendMessage}
                     disabled={!inputMessage.trim() || isTyping}
                     size="icon"
+                    className="bg-blue-600 hover:bg-blue-700"
                   >
                     <Send className="h-4 w-4" />
                   </Button>

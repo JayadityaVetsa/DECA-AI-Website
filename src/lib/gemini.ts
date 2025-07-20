@@ -2,7 +2,7 @@
 // Place your API key in an environment variable for security (e.g., import.meta.env.VITE_GEMINI_API_KEY)
 
 export async function askGemini(question: string, context?: string): Promise<string> {
-  const apiKey = "AIzaSyAxcqpUDFu44ETDHILvt_PHBvCrJnx2Ajo";
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyAxcqpUDFu44ETDHILvt_PHBvCrJnx2Ajo";
   if (!apiKey) {
     return "Gemini API key is not set. Please add VITE_GEMINI_API_KEY to your .env file.";
   }

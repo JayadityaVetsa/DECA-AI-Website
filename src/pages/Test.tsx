@@ -28,6 +28,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { DECAQuestionGenerator, TestConfiguration, DECAQuestion } from "../lib/questionGenerator";
+import { DECA_EVENTS_DATABASE, PIManager } from "../lib/performanceIndicators";
 
 const Test = () => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -39,9 +41,19 @@ const Test = () => {
   const [tutorMessages, setTutorMessages] = useState<Array<{role: 'user' | 'ai', content: string}>>([]);
   const [tutorInput, setTutorInput] = useState("");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [cluster, setCluster] = useState('Marketing');
+  const [event, setEvent] = useState('');
+  const [customQuestionCount, setCustomQuestionCount] = useState(20);
+  const [customTimeLimit, setCustomTimeLimit] = useState(30);
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+  const [difficultyDistribution, setDifficultyDistribution] = useState({
+    easy: 40,
+    medium: 40, 
+    hard: 20
+  });
 
-  // Sample AI-generated questions
-  const questions = [
+  // Sample AI-generated questions for fallback
+  const mockQuestions = [
     {
       id: 1,
       category: "Marketing",
@@ -113,6 +125,9 @@ const Test = () => {
       explanation: "An LLC provides limited liability protection (protecting personal assets) while maintaining pass-through taxation, where profits and losses are reported on owners' personal tax returns, avoiding double taxation."
     }
   ];
+
+  // Questions state - initialized with mock questions
+  const [questions, setQuestions] = useState(mockQuestions);
 
   // Timer effect
   useEffect(() => {
@@ -208,6 +223,50 @@ const Test = () => {
     }, 1000);
   };
 
+  const handleStartTest = async () => {
+    setIsGeneratingQuestions(true);
+    
+    try {
+      const config: TestConfiguration = {
+        test_type: 'practice',
+        cluster,
+        event: event || undefined,
+        question_count: customQuestionCount,
+        time_limit_minutes: customTimeLimit,
+        difficulty_distribution: {
+          easy: difficultyDistribution.easy / 100,
+          medium: difficultyDistribution.medium / 100,
+          hard: difficultyDistribution.hard / 100
+        }
+      };
+
+      const generatedTest = await DECAQuestionGenerator.generateTest(config);
+      
+      // Convert generated questions to existing format
+      const convertedQuestions = generatedTest.questions.map((q: DECAQuestion) => ({
+        id: parseInt(q.id.split('_')[1]) || Math.floor(Math.random() * 10000), // Convert string id to number
+        category: q.cluster,
+        difficulty: q.difficulty_level.charAt(0).toUpperCase() + q.difficulty_level.slice(1),
+        question: q.question_text,
+        options: [q.options.A, q.options.B, q.options.C, q.options.D],
+        correct: ['A', 'B', 'C', 'D'].indexOf(q.correct_answer),
+        explanation: q.explanation
+      }));
+
+      setQuestions(convertedQuestions);
+      setTimeLeft(customTimeLimit * 60);
+      setTestStarted(true);
+    } catch (error) {
+      console.error('Error generating test:', error);
+      // Fallback to mock questions if generation fails
+      setQuestions(mockQuestions);
+      setTimeLeft(customTimeLimit * 60);
+      setTestStarted(true);
+    } finally {
+      setIsGeneratingQuestions(false);
+    }
+  };
+
   if (!testStarted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -233,24 +292,161 @@ const Test = () => {
           </div>
         </nav>
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card className="border-0 shadow-xl">
-            <CardHeader className="text-center pb-8">
+            <CardHeader className="text-center pb-6">
               <CardTitle className="text-3xl font-bold mb-4">
                 DECA Practice Test (with AI Tutor)
               </CardTitle>
               <CardDescription className="text-lg">
-                Test your knowledge with AI-generated questions and get help from your AI tutor
+                Customize your test with AI-generated questions based on DECA Performance Indicators
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-8">
+              {/* Cluster & Event Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    DECA Cluster
+                  </label>
+                  <select
+                    className="w-full border rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={cluster}
+                    onChange={e => {
+                      setCluster(e.target.value);
+                      setEvent(''); // Reset event when cluster changes
+                    }}
+                  >
+                    {PIManager.getAllClusters().map(clusterName => (
+                      <option key={clusterName} value={clusterName}>{clusterName}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Specific Event (Optional)
+                  </label>
+                  <select
+                    className="w-full border rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={event}
+                    onChange={e => setEvent(e.target.value)}
+                  >
+                    <option value="">All Events in Cluster</option>
+                    {PIManager.getClusterEvents(cluster).map(eventName => (
+                      <option key={eventName} value={eventName}>{eventName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Test Configuration */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Number of Questions: {customQuestionCount}
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="100"
+                    step="5"
+                    value={customQuestionCount}
+                    onChange={e => setCustomQuestionCount(parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                  />
+                  <div className="flex justify-between text-sm text-gray-500 mt-1">
+                    <span>5</span>
+                    <span>100</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Time Limit: {customTimeLimit} minutes
+                  </label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="120"
+                    step="5"
+                    value={customTimeLimit}
+                    onChange={e => setCustomTimeLimit(parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                  />
+                  <div className="flex justify-between text-sm text-gray-500 mt-1">
+                    <span>10 min</span>
+                    <span>120 min</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Difficulty Distribution */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-4">
+                  Difficulty Distribution
+                </label>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <label className="block text-sm text-gray-600 mb-2">Easy: {difficultyDistribution.easy}%</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={difficultyDistribution.easy}
+                      onChange={e => {
+                        const easy = parseInt(e.target.value);
+                        const remaining = 100 - easy;
+                        const medium = Math.min(difficultyDistribution.medium, remaining);
+                        const hard = remaining - medium;
+                        setDifficultyDistribution({ easy, medium, hard });
+                      }}
+                      className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                  <div className="text-center">
+                    <label className="block text-sm text-gray-600 mb-2">Medium: {difficultyDistribution.medium}%</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={difficultyDistribution.medium}
+                      onChange={e => {
+                        const medium = parseInt(e.target.value);
+                        const remaining = 100 - medium;
+                        const easy = Math.min(difficultyDistribution.easy, remaining);
+                        const hard = remaining - easy;
+                        setDifficultyDistribution({ easy, medium, hard });
+                      }}
+                      className="w-full h-2 bg-yellow-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                  <div className="text-center">
+                    <label className="block text-sm text-gray-600 mb-2">Hard: {difficultyDistribution.hard}%</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={difficultyDistribution.hard}
+                      onChange={e => {
+                        const hard = parseInt(e.target.value);
+                        const remaining = 100 - hard;
+                        const easy = Math.min(difficultyDistribution.easy, remaining);
+                        const medium = remaining - easy;
+                        setDifficultyDistribution({ easy, medium, hard });
+                      }}
+                      className="w-full h-2 bg-red-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Test Stats */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
                 <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600 mb-2">5</div>
+                  <div className="text-2xl font-bold text-blue-600 mb-2">{customQuestionCount}</div>
                   <div className="text-sm text-gray-600">Questions</div>
                 </div>
                 <div className="p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600 mb-2">30</div>
+                  <div className="text-2xl font-bold text-green-600 mb-2">{customTimeLimit}</div>
                   <div className="text-sm text-gray-600">Minutes</div>
                 </div>
                 <div className="p-4 bg-purple-50 rounded-lg">
@@ -259,31 +455,26 @@ const Test = () => {
                 </div>
               </div>
 
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <h3 className="font-semibold text-green-800 mb-2">Practice Mode Features:</h3>
-                <ul className="text-sm text-green-700 space-y-1">
-                  <li>• AI tutor available during the test for hints and explanations</li>
-                  <li>• You have 30 minutes to complete 5 questions</li>
-                  <li>• Questions cover Marketing, Finance, Entrepreneurship, and Business Law</li>
-                  <li>• You can navigate between questions and change answers</li>
-                  <li>• Detailed explanations provided after submission</li>
-                </ul>
-              </div>
-
-              <div className="text-center pt-4 space-y-4">
+              {/* Start Button */}
+              <div className="text-center">
                 <Button 
+                  onClick={handleStartTest} 
                   size="lg" 
-                  className="px-12 py-6 text-lg mr-4"
-                  onClick={() => setTestStarted(true)}
+                  className="text-lg px-8 py-4"
+                  disabled={isGeneratingQuestions}
                 >
-                  Start Practice Test
+                  {isGeneratingQuestions ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      Generating Questions...
+                    </>
+                  ) : (
+                    'Start Practice Test'
+                  )}
                 </Button>
-                <div className="text-sm text-gray-600">
-                  Want a real test experience? Try the{" "}
-                  <Link to="/full-test" className="text-blue-600 hover:underline">
-                    Full Test (No AI Assistance)
-                  </Link>
-                </div>
+                <p className="text-sm text-gray-500 mt-3">
+                  Questions will be generated using AI based on DECA Performance Indicators
+                </p>
               </div>
             </CardContent>
           </Card>

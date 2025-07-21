@@ -21,6 +21,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { askGemini } from "../lib/gemini";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";
+import { findRelevantExplanations, getExplanationStats } from "../lib/tutorKnowledge";
 
 interface Message {
   id: number;
@@ -73,36 +74,27 @@ const EVENTS = [
   }
 ];
 
-const DECA_CONTEXT = `You are an AI DECA Tutor, a friendly, knowledgeable, and encouraging assistant for high school students preparing for DECA competitions. Your primary goal is to help students understand business concepts, practice problem-solving for DECA events (like role-plays and case studies), and build confidence for their competitions.
+const DECA_CONTEXT = `You are an AI DECA Tutor, enhanced with real DECA explanations and knowledge. You help high school students prepare for DECA competitions with accurate, detailed explanations.
 
-Core Responsibilities & Guiding Principles:
-1. Introduce yourself and your purpose at the start of a conversation or if the user seems unsure.
-2. Clearly explain DECA-related business concepts using simple language, definitions, and analogies relevant to high school students and DECA scenarios. Provide real-world or DECA-centric examples.
-3. Offer multiple learning perspectives if a student struggles or proactively, and ask if they want a different explanation or example.
-4. When a student wants to practice, offer relevant sample questions (role-play, case study, or concept-check). Guide them through thinking about solutions, considering DECA performance indicators, and structuring answers. Do not just give the answer—help them arrive at it by asking guiding questions or breaking the problem down.
-5. Encourage follow-up questions and clarifications. Make students feel comfortable asking for more details or alternative explanations.
-6. Maintain context awareness within the session to provide coherent and relevant follow-up assistance.
-7. Center your knowledge on DECA's competitive events, common performance indicators, and foundational business principles as they apply to these events. Frame explanations and practice within the context of DECA performance indicators or event structures when relevant.
-8. Strive for high accuracy in all business concept explanations and advice. If unsure about a specific or niche DECA rule/update, admit uncertainty and suggest consulting official DECA materials or an advisor.
+Core Responsibilities:
+1. Use provided DECA explanations when available to give accurate, official answers
+2. Explain business concepts clearly with real-world examples
+3. Help students understand Performance Indicators and their applications
+4. Provide practice scenarios relevant to DECA competitions
+5. Encourage critical thinking and problem-solving
 
-Tone & Style:
-- Supportive & Encouraging: Use positive reinforcement (e.g., "That's a great question!", "Good thinking!", "You're on the right track!").
-- Friendly & Approachable: Use clear, conversational language suitable for high school students. Avoid jargon unless you explain it immediately.
-- Patient: Be prepared to explain things in multiple ways if needed.
-- Curious & Engaging: Ask questions to understand the student's needs better and to stimulate their thinking.
-
-Example Interaction Flow:
-User: "Can you explain what an LLC is and give a sample question on it?"
-AI: "Absolutely! An LLC, or Limited Liability Company, is a popular business structure that combines the simplicity of a sole proprietorship or partnership with the limited liability protection of a corporation. This means the personal assets of the owners are generally protected from business debts and lawsuits. It's often a good choice for small to medium-sized businesses. Does that initial explanation make sense?"
-User: "Yes."
-AI: "Great! Now, for a sample question you might encounter in a DECA context: 'Your client, a small bakery currently operating as a sole proprietorship, is considering changing its business structure to an LLC. Explain the potential advantages and disadvantages of this change for your client's marketing strategy, specifically considering how it might affect their target market segmentation and overall marketing plan. Consider factors such as brand image, fundraising opportunities, and legal liability.' How would you start thinking about answering that?"
-`;
+Style Guidelines:
+- Be encouraging and supportive
+- Use clear, age-appropriate language
+- Provide specific examples when possible
+- Reference DECA Performance Indicators when relevant
+- Ask follow-up questions to ensure understanding`;
 
 const Tutor = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
-      content: "Hi there! I'm your AI DECA tutor. I'm here to help you master business concepts, practice problem-solving, and prepare for competitions. What would you like to learn about today?",
+      content: "Hi! I'm your AI DECA tutor, now enhanced with real DECA explanations from official materials. I can help you understand business concepts, practice for competitions, and explain complex topics. What would you like to learn about today?",
       sender: 'ai',
       timestamp: new Date(),
     }
@@ -111,6 +103,7 @@ const Tutor = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(EVENTS[0].name);
   const [selectedPI, setSelectedPI] = useState(EVENTS[0].pis[0]);
+  const [explanationStats, setExplanationStats] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -121,6 +114,11 @@ const Tutor = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    // Load explanation statistics
+    getExplanationStats().then(setExplanationStats);
+  }, []);
 
   // Update PI when event changes
   useEffect(() => {
@@ -152,9 +150,18 @@ const Tutor = () => {
     setIsTyping(true);
 
     try {
-      // Add event/PI context to the question
-      const context = `${DECA_CONTEXT}\n\nEvent: ${selectedEvent}\nPerformance Indicator: ${selectedPI}`;
-      const aiResponse = await askGemini(inputMessage, context);
+      // Find relevant DECA explanations for the user's question
+      const relevantExplanations = await findRelevantExplanations(inputMessage);
+      
+      // Build enhanced context with DECA explanations
+      let enhancedContext = `${DECA_CONTEXT}\n\nEvent: ${selectedEvent}\nPerformance Indicator: ${selectedPI}`;
+      
+      if (relevantExplanations.length > 0) {
+        enhancedContext += `\n\nRelevant DECA Explanations:\n${relevantExplanations.join('\n\n')}`;
+        enhancedContext += `\n\nUse the above official DECA explanations to provide accurate, detailed responses. Reference these explanations when appropriate.`;
+      }
+
+      const aiResponse = await askGemini(inputMessage, enhancedContext);
 
       const aiMessage: Message = {
         id: messages.length + 2,
@@ -167,7 +174,7 @@ const Tutor = () => {
     } catch (error) {
       const errorMessage: Message = {
         id: messages.length + 2,
-        content: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.",
+        content: "I'm having trouble connecting right now. Please try again in a moment.",
         sender: 'ai',
         timestamp: new Date(),
       };
@@ -260,6 +267,31 @@ const Tutor = () => {
               </CardContent>
             </Card>
 
+            {/* Knowledge Base Stats */}
+            {explanationStats && (
+              <Card className="border-0 shadow-lg">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <BookOpen className="h-5 w-5 text-green-600" />
+                    Knowledge Base
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span>DECA Explanations:</span>
+                    <Badge variant="outline">{explanationStats.totalExplanations}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Source PDFs:</span>
+                    <Badge variant="outline">{explanationStats.sources.length}</Badge>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Enhanced with official DECA materials
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="border-0 shadow-lg">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -270,15 +302,15 @@ const Tutor = () => {
               <CardContent className="space-y-3 text-sm">
                 <div className="flex items-start space-x-2">
                   <TrendingUp className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Practice with real business scenarios daily</span>
+                  <span>Ask about specific DECA Performance Indicators</span>
                 </div>
                 <div className="flex items-start space-x-2">
                   <MessageCircle className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
-                  <span>Ask specific questions to get detailed explanations</span>
+                  <span>Request practice scenarios and explanations</span>
                 </div>
                 <div className="flex items-start space-x-2">
                   <BookOpen className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
-                  <span>Connect concepts to current business events</span>
+                  <span>I'm trained on real DECA materials for accuracy</span>
                 </div>
               </CardContent>
             </Card>
@@ -291,8 +323,10 @@ const Tutor = () => {
                 <div className="flex items-center justify-between mb-4">
                   <CardTitle className="flex items-center gap-2 text-xl">
                     <Bot className="h-6 w-6 text-blue-600" />
-                    AI DECA Tutor
-                    <Badge className="ml-2 bg-green-100 text-green-800 hover:bg-green-100">Always Available</Badge>
+                    Enhanced AI DECA Tutor
+                    <Badge className="ml-2 bg-green-100 text-green-800 hover:bg-green-100">
+                      Real DECA Knowledge
+                    </Badge>
                   </CardTitle>
                 </div>
                 
@@ -386,14 +420,14 @@ const Tutor = () => {
                 </ScrollArea>
               </CardContent>
 
-              {/* Input Area (always visible) */}
+              {/* Input Area */}
               <div className="border-t p-4 bg-white sticky bottom-0 z-10">
                 <div className="flex space-x-2">
                   <Input
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Ask me anything about DECA topics, request practice questions, or get study help..."
+                    placeholder="Ask me about DECA topics, Performance Indicators, or request practice explanations..."
                     className="flex-1 text-sm"
                     disabled={isTyping}
                   />
@@ -407,7 +441,7 @@ const Tutor = () => {
                   </Button>
                 </div>
                 <div className="text-xs text-gray-500 mt-2 text-center">
-                  💡 Try asking: "Explain the marketing mix" or "Give me a practice question about finance"
+                  💡 Enhanced with {explanationStats?.totalExplanations || 0} real DECA explanations for accurate answers
                 </div>
               </div>
             </Card>

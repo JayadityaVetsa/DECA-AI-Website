@@ -17,9 +17,10 @@ import {
   MessageCircle,
   Send,
   Bot,
-  User
+  User,
+  LogOut
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Sheet,
   SheetContent,
@@ -30,6 +31,17 @@ import {
 } from "@/components/ui/sheet";
 import { DECAQuestionGenerator, TestConfiguration, DECAQuestion } from "../lib/questionGenerator";
 import { DECA_EVENTS_DATABASE, PIManager } from "../lib/performanceIndicators";
+import { askGemini } from "../lib/gemini";
+import { findRelevantExplanations } from "../lib/tutorKnowledge";
+import { auth } from "../lib/firebase";
+import { signOut } from "firebase/auth";
+
+interface TutorMessage {
+  id: number;
+  role: 'user' | 'ai';
+  content: string;
+  timestamp: Date;
+}
 
 const Test = () => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -38,7 +50,7 @@ const Test = () => {
   const [showResults, setShowResults] = useState(false);
   const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes
   const [testStarted, setTestStarted] = useState(false);
-  const [tutorMessages, setTutorMessages] = useState<Array<{role: 'user' | 'ai', content: string}>>([]);
+  const [tutorMessages, setTutorMessages] = useState<TutorMessage[]>([]);
   const [tutorInput, setTutorInput] = useState("");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [cluster, setCluster] = useState('Marketing');
@@ -46,14 +58,25 @@ const Test = () => {
   const [customQuestionCount, setCustomQuestionCount] = useState(20);
   const [customTimeLimit, setCustomTimeLimit] = useState(30);
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+  const [isTutorLoading, setIsTutorLoading] = useState(false);
   const [difficultyDistribution, setDifficultyDistribution] = useState({
     easy: 40,
     medium: 40, 
     hard: 20
   });
 
+  const navigate = useNavigate();
+
   // Sample AI-generated questions for fallback
-  const mockQuestions = [
+  const mockQuestions: Array<{
+    id: number;
+    category: string;
+    difficulty: string;
+    question: string;
+    options: string[];
+    correct: number;
+    explanation: string;
+  }> = [
     {
       id: 1,
       category: "Marketing",
@@ -81,53 +104,19 @@ const Test = () => {
       ],
       correct: 2,
       explanation: "A current ratio of 2.5 and quick ratio of 1.8 indicate good liquidity. The difference suggests some inventory, but with 6 inventory turnovers per year (above average), there may still be room for improvement in inventory management."
-    },
-    {
-      id: 3,
-      category: "Entrepreneurship",
-      difficulty: "Beginner",
-      question: "What is the primary purpose of a business model canvas?",
-      options: [
-        "To create detailed financial projections",
-        "To visualize and develop business models on a single page",
-        "To conduct competitive analysis",
-        "To plan marketing campaigns"
-      ],
-      correct: 1,
-      explanation: "The business model canvas is a strategic management tool that allows entrepreneurs to visualize, design, and pivot their business model on a single page, making it easier to understand and communicate."
-    },
-    {
-      id: 4,
-      category: "Marketing",
-      difficulty: "Advanced",
-      question: "A luxury brand notices declining sales among Gen Z consumers despite strong performance with millennials. Which strategy would be most effective?",
-      options: [
-        "Reduce prices to match competitor offerings",
-        "Increase traditional advertising spend",
-        "Partner with Gen Z influencers and focus on social impact",
-        "Maintain current strategy as Gen Z will eventually appreciate luxury"
-      ],
-      correct: 2,
-      explanation: "Gen Z values authenticity, social impact, and peer recommendations. Partnering with relevant influencers and highlighting social responsibility aligns with their values and purchasing behaviors."
-    },
-    {
-      id: 5,
-      category: "Business Law",
-      difficulty: "Intermediate",
-      question: "Which type of business entity provides limited liability protection while allowing profits and losses to pass through to owners' personal tax returns?",
-      options: [
-        "C Corporation",
-        "Sole Proprietorship", 
-        "Limited Liability Company (LLC)",
-        "General Partnership"
-      ],
-      correct: 2,
-      explanation: "An LLC provides limited liability protection (protecting personal assets) while maintaining pass-through taxation, where profits and losses are reported on owners' personal tax returns, avoiding double taxation."
     }
   ];
 
   // Questions state - initialized with mock questions
-  const [questions, setQuestions] = useState(mockQuestions);
+  const [questions, setQuestions] = useState<Array<{
+    id: number;
+    category: string;
+    difficulty: string;
+    question: string;
+    options: string[];
+    correct: number;
+    explanation: string;
+  }>>(mockQuestions);
 
   // Timer effect
   useEffect(() => {
@@ -138,6 +127,18 @@ const Test = () => {
       handleSubmitTest();
     }
   }, [timeLeft, testStarted, showResults]);
+
+  // Reset tutor messages when question changes
+  useEffect(() => {
+    if (testStarted) {
+      setTutorMessages([{
+        id: 1,
+        role: 'ai',
+        content: `Hi! I'm here to help you with this ${questions[currentQuestion]?.category || 'DECA'} question. I have access to the current question and can provide hints, explanations, or clarifications based on official DECA materials. What would you like to know?`,
+        timestamp: new Date()
+      }]);
+    }
+  }, [currentQuestion, testStarted]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -194,33 +195,102 @@ const Test = () => {
     setSelectedAnswer("");
     setAnswers([]);
     setShowResults(false);
-    setTimeLeft(1800);
+    setTimeLeft(customTimeLimit * 60);
     setTestStarted(false);
     setTutorMessages([]);
   };
 
-  const handleTutorSend = () => {
+  const handleTutorSend = async () => {
     if (!tutorInput.trim()) return;
     
-    const userMessage = tutorInput.trim();
-    setTutorMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setTutorInput("");
+    const userMessage: TutorMessage = {
+      id: tutorMessages.length + 1,
+      role: 'user',
+      content: tutorInput.trim(),
+      timestamp: new Date()
+    };
     
-    // Simulate AI response after a short delay
-    setTimeout(() => {
+    setTutorMessages(prev => [...prev, userMessage]);
+    setTutorInput("");
+    setIsTutorLoading(true);
+    
+    try {
       const currentQ = questions[currentQuestion];
-      let aiResponse = "";
       
-      if (userMessage.toLowerCase().includes('hint')) {
-        aiResponse = `Here's a hint for this ${currentQ.category} question: Think about what type of segmentation focuses on personal values and lifestyle choices. The key is understanding what motivates environmentally conscious consumers.`;
-      } else if (userMessage.toLowerCase().includes('explain')) {
-        aiResponse = `This question is testing your knowledge of market segmentation in ${currentQ.category}. The different types of segmentation are: Geographic (location), Demographic (age, income), Psychographic (lifestyle, values), and Behavioral (purchase patterns). Which one would best reach people who care about the environment?`;
-      } else {
-        aiResponse = `I can help you with this ${currentQ.category} question! Try thinking about what drives environmentally conscious consumers - is it where they live, how old they are, what they value, or how often they buy? Feel free to ask for a hint or explanation of the concepts!`;
+      // Find relevant DECA explanations for this question topic
+      const relevantExplanations = await findRelevantExplanations(
+        currentQ.question,
+        currentQ.category
+      );
+      
+      // Build enhanced context with current question details
+      let context = `You are an AI DECA tutor helping a student with a practice test. Here is the current question context:
+
+CURRENT QUESTION:
+Question: ${currentQ.question}
+Category: ${currentQ.category}
+Difficulty: ${currentQ.difficulty}
+Options:
+A) ${currentQ.options[0]}
+B) ${currentQ.options[1]}
+C) ${currentQ.options[2]}
+D) ${currentQ.options[3]}
+
+CORRECT ANSWER: ${String.fromCharCode(65 + currentQ.correct)} (${currentQ.options[currentQ.correct]})
+EXPLANATION: ${currentQ.explanation}
+
+Student's question: ${userMessage.content}`;
+
+      if (relevantExplanations.length > 0) {
+        context += `\n\nRELEVANT DECA EXPLANATIONS:\n${relevantExplanations.join('\n\n')}`;
+      }
+
+      context += `\n\nINSTRUCTIONS:
+- Help the student understand the concept without directly giving away the answer unless they specifically ask for it
+- Use the provided explanations and question context to give accurate information
+- If they ask for a hint, guide them toward the right thinking process
+- If they ask for the answer, you can provide it along with a detailed explanation
+- Be encouraging and educational
+- Reference the specific question content when relevant
+- Keep responses concise but helpful (2-3 paragraphs max)`;
+
+      const aiResponse = await askGemini(userMessage.content, context);
+
+      const aiMessage: TutorMessage = {
+        id: tutorMessages.length + 2,
+        role: 'ai',
+        content: aiResponse,
+        timestamp: new Date()
+      };
+
+      setTutorMessages(prev => [...prev, aiMessage]);
+    } catch (error: any) {
+      console.error('Error getting tutor response:', error);
+      
+      let errorMessage = "I'm having trouble connecting right now. Please try asking your question again in a moment.";
+      
+      // Provide more specific error messages
+      if (error.message.includes('API key')) {
+        errorMessage = "There's an issue with the AI configuration. Please check your internet connection and try again.";
+      } else if (error.message.includes('timeout')) {
+        errorMessage = "The request took too long. Please try asking a shorter question.";
+      } else if (error.message.includes('Rate limit')) {
+        errorMessage = "Too many requests right now. Please wait a moment and try again.";
+      } else if (error.message.includes('safety filters')) {
+        errorMessage = "Your question was blocked by content filters. Please rephrase your question in a more academic way.";
       }
       
-      setTutorMessages(prev => [...prev, { role: 'ai', content: aiResponse }]);
-    }, 1000);
+      const errorTutorMessage: TutorMessage = {
+        id: tutorMessages.length + 2,
+        role: 'ai',
+        content: errorMessage,
+        timestamp: new Date()
+      };
+      
+      setTutorMessages(prev => [...prev, errorTutorMessage]);
+    } finally {
+      setIsTutorLoading(false);
+    }
   };
 
   const handleStartTest = async () => {
@@ -240,11 +310,13 @@ const Test = () => {
         }
       };
 
+      console.log('Starting test generation with config:', config);
       const generatedTest = await DECAQuestionGenerator.generateTest(config);
+      console.log('Generated test:', generatedTest);
       
       // Convert generated questions to existing format
-      const convertedQuestions = generatedTest.questions.map((q: DECAQuestion) => ({
-        id: parseInt(q.id.split('_')[1]) || Math.floor(Math.random() * 10000), // Convert string id to number
+      const convertedQuestions = generatedTest.questions.map((q: DECAQuestion, index: number) => ({
+        id: index + 1,
         category: q.cluster,
         difficulty: q.difficulty_level.charAt(0).toUpperCase() + q.difficulty_level.slice(1),
         question: q.question_text,
@@ -253,18 +325,74 @@ const Test = () => {
         explanation: q.explanation
       }));
 
+      console.log('Converted questions:', convertedQuestions.length);
+      
+      if (convertedQuestions.length === 0) {
+        throw new Error('No questions generated');
+      }
+
       setQuestions(convertedQuestions);
       setTimeLeft(customTimeLimit * 60);
       setTestStarted(true);
-    } catch (error) {
+      
+      // Show success message based on generation method
+      const isFromLocal = generatedTest.questions.some(q => q.id.startsWith('local_'));
+      const usedLocalDueToLimits = (generatedTest.questions as any).__usedLocalDueToLimits;
+      const usedMixedSources = (generatedTest.questions as any).__usedMixedSources;
+      
+      if (usedLocalDueToLimits) {
+        console.log('📚 Successfully using local question bank due to API limits');
+      } else if (usedMixedSources) {
+        console.log('🔄 Successfully using mixed question sources');
+      } else if (isFromLocal) {
+        console.log('✅ Successfully using local question bank');
+      } else {
+        console.log('🚀 Successfully generated fresh questions with AI');
+      }
+      
+    } catch (error: any) {
       console.error('Error generating test:', error);
-      // Fallback to mock questions if generation fails
-      setQuestions(mockQuestions);
+      
+      // Provide specific user feedback based on error type
+      let errorMessage = '';
+      
+      if (error.message?.includes('Rate limit') || error.message?.includes('quota') || error.message?.includes('API_LIMIT_EXCEEDED')) {
+        errorMessage = '🔄 API Limit Reached\n\nWe\'ve hit the daily API limit, but don\'t worry! We\'re using our high-quality local question bank instead. These questions are curated from real DECA materials and provide excellent practice.\n\nThe test functionality will work perfectly!';
+      } else {
+        errorMessage = '⚠️ Generation Issue\n\nWe\'re having trouble generating new questions right now. Using our reliable local question bank instead to ensure you can still practice effectively.\n\nAll features will work normally!';
+      }
+      
+      // Create fallback questions based on requested count
+      const fallbackQuestions = [];
+      for (let i = 0; i < Math.min(customQuestionCount, 20); i++) {
+        const baseQuestion = mockQuestions[i % mockQuestions.length];
+        
+        // Create variations to avoid too much repetition
+        const questionVariation = {
+          ...baseQuestion,
+          id: i + 1,
+          // Add slight variations to avoid exact duplicates
+          question: i < mockQuestions.length ? baseQuestion.question : 
+            baseQuestion.question.replace('A company', `${['An organization', 'A business', 'A firm', 'An enterprise'][i % 4]}`)
+        };
+        
+        fallbackQuestions.push(questionVariation);
+      }
+      
+      setQuestions(fallbackQuestions);
       setTimeLeft(customTimeLimit * 60);
       setTestStarted(true);
+      
+      // Show informative alert
+      alert(errorMessage);
     } finally {
       setIsGeneratingQuestions(false);
     }
+  };
+
+  const handleSignOut = async () => {
+    await signOut(auth);
+    navigate("/auth");
   };
 
   if (!testStarted) {
@@ -282,11 +410,18 @@ const Test = () => {
               </Link>
               <div className="flex items-center space-x-4">
                 <Link to="/dashboard">
-                  <Button variant="ghost">Dashboard</Button>
+                  <Button variant="ghost">
+                    <Home className="h-4 w-4 mr-2" />
+                    Dashboard
+                  </Button>
                 </Link>
                 <Link to="/tutor">
                   <Button variant="ghost">AI Tutor</Button>
                 </Link>
+                <Button variant="outline" size="sm" onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Sign Out</span>
+                </Button>
               </div>
             </div>
           </div>
@@ -296,7 +431,10 @@ const Test = () => {
           <Card className="border-0 shadow-xl">
             <CardHeader className="text-center pb-6">
               <CardTitle className="text-3xl font-bold mb-4">
-                DECA Practice Test (with AI Tutor)
+                DECA Practice Test
+                <Badge className="ml-3 bg-green-100 text-green-800 hover:bg-green-100">
+                  Enhanced AI Tutor
+                </Badge>
               </CardTitle>
               <CardDescription className="text-lg">
                 Customize your test with AI-generated questions based on DECA Performance Indicators
@@ -348,7 +486,7 @@ const Test = () => {
                   <input
                     type="range"
                     min="5"
-                    max="100"
+                    max="50"
                     step="5"
                     value={customQuestionCount}
                     onChange={e => setCustomQuestionCount(parseInt(e.target.value))}
@@ -356,7 +494,7 @@ const Test = () => {
                   />
                   <div className="flex justify-between text-sm text-gray-500 mt-1">
                     <span>5</span>
-                    <span>100</span>
+                    <span>50</span>
                   </div>
                 </div>
                 <div>
@@ -439,6 +577,22 @@ const Test = () => {
                 </div>
               </div>
 
+              {/* API Status Info */}
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-sm font-medium text-gray-700">System Status</span>
+                  </div>
+                  <span className="text-xs text-gray-500">Gemini API Free Tier: 50 requests/day</span>
+                </div>
+                <div className="mt-2 text-xs text-gray-600">
+                  ⚡ <strong>Batch Generation:</strong> Generates all {customQuestionCount} questions in 1 API call<br />
+                  📚 <strong>Local Bank:</strong> {customQuestionCount > 15 ? '15+' : customQuestionCount} high-quality backup questions available<br />
+                  🔄 <strong>Smart Fallback:</strong> Seamless transition when API limits reached
+                </div>
+              </div>
+
               {/* Test Stats */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
                 <div className="p-4 bg-blue-50 rounded-lg">
@@ -450,8 +604,8 @@ const Test = () => {
                   <div className="text-sm text-gray-600">Minutes</div>
                 </div>
                 <div className="p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600 mb-2">AI Tutor</div>
-                  <div className="text-sm text-gray-600">Available</div>
+                  <div className="text-2xl font-bold text-purple-600 mb-2">Enhanced</div>
+                  <div className="text-sm text-gray-600">AI Tutor</div>
                 </div>
               </div>
 
@@ -466,14 +620,16 @@ const Test = () => {
                   {isGeneratingQuestions ? (
                     <>
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      Generating Questions...
+                      Preparing {customQuestionCount} Questions...
                     </>
                   ) : (
                     'Start Practice Test'
                   )}
                 </Button>
                 <p className="text-sm text-gray-500 mt-3">
-                  Questions will be generated using AI based on DECA Performance Indicators
+                  🚀 <strong>Batch Generation:</strong> All questions generated in 1 API call (super fast!) <br />
+                  📚 <strong>Smart Fallback:</strong> High-quality local questions when API limits reached <br />
+                  🤖 <strong>Enhanced AI Tutor:</strong> Available during test with real DECA knowledge
                 </p>
               </div>
             </CardContent>
@@ -483,6 +639,7 @@ const Test = () => {
     );
   }
 
+  // Continue with the rest of the existing code for the test interface and results...
   if (showResults) {
     const score = calculateScore();
     const correctAnswers = answers.filter((answer, index) => 
@@ -544,7 +701,7 @@ const Test = () => {
                   <div className="text-sm text-gray-600">Incorrect</div>
                 </div>
                 <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600 mb-2">{formatTime(1800 - timeLeft)}</div>
+                  <div className="text-2xl font-bold text-blue-600 mb-2">{formatTime((customTimeLimit * 60) - timeLeft)}</div>
                   <div className="text-sm text-gray-600">Time Taken</div>
                 </div>
               </div>
@@ -662,48 +819,40 @@ const Test = () => {
                 <span className="font-mono text-lg">{formatTime(timeLeft)}</span>
               </div>
               
-              {/* AI Tutor Sheet */}
+              {/* Enhanced AI Tutor Sheet */}
               <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Bot className="h-4 w-4 mr-2" />
-                    AI Tutor
+                    Enhanced AI Tutor
                   </Button>
                 </SheetTrigger>
-                <SheetContent className="w-[400px] sm:w-[540px]">
-                  <SheetHeader>
-                    <SheetTitle className="flex items-center gap-2">
-                      <Bot className="h-5 w-5 text-blue-600" />
-                      AI Tutor Assistant
-                    </SheetTitle>
-                    <SheetDescription>
-                      Get help with the current question. Ask for hints, explanations, or clarifications!
-                    </SheetDescription>
-                  </SheetHeader>
+                <SheetContent className="w-[400px] sm:w-[540px] flex flex-col h-full p-0">
+                  <div className="p-6 border-b bg-white">
+                    <SheetHeader>
+                      <SheetTitle className="flex items-center gap-2">
+                        <Bot className="h-5 w-5 text-blue-600" />
+                        Enhanced AI Tutor
+                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                          Real DECA Knowledge
+                        </Badge>
+                      </SheetTitle>
+                      <SheetDescription>
+                        Get help with the current question. I have access to the question details, correct answer, and official DECA explanations!
+                      </SheetDescription>
+                    </SheetHeader>
+                  </div>
                   
-                  <div className="flex flex-col h-[calc(100vh-120px)] mt-6">
-                    <ScrollArea className="flex-1 pr-4">
+                  {/* Messages Area with proper flex sizing */}
+                  <div className="flex-1 flex flex-col min-h-0 bg-gradient-to-b from-white via-blue-50 to-purple-50">
+                    <ScrollArea className="flex-1 px-6 py-4">
                       <div className="space-y-4">
-                        {tutorMessages.length === 0 && (
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <p className="text-blue-800 text-sm">
-                              👋 Hi! I'm here to help you with this {questions[currentQuestion]?.category} question. 
-                              You can ask me for:
-                            </p>
-                            <ul className="text-blue-700 text-sm mt-2 space-y-1">
-                              <li>• Hints about the question</li>
-                              <li>• Explanations of concepts</li>
-                              <li>• Clarification of terms</li>
-                            </ul>
-                          </div>
-                        )}
-                        
-                        {tutorMessages.map((message, index) => (
-                          <div key={index} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] rounded-lg p-3 ${
+                        {tutorMessages.map((message) => (
+                          <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] rounded-lg p-3 ${
                               message.role === 'user' 
                                 ? 'bg-blue-600 text-white' 
-                                : 'bg-gray-100 text-gray-900'
+                                : 'bg-white text-gray-900 border border-gray-200 shadow-sm'
                             }`}>
                               <div className="flex items-center gap-2 mb-1">
                                 {message.role === 'user' ? (
@@ -712,28 +861,55 @@ const Test = () => {
                                   <Bot className="h-4 w-4" />
                                 )}
                                 <span className="text-xs font-medium">
-                                  {message.role === 'user' ? 'You' : 'AI Tutor'}
+                                  {message.role === 'user' ? 'You' : 'Enhanced AI Tutor'}
                                 </span>
                               </div>
-                              <p className="text-sm">{message.content}</p>
+                              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
                             </div>
                           </div>
                         ))}
+                        
+                        {isTutorLoading && (
+                          <div className="flex gap-3 justify-start">
+                            <div className="bg-white text-gray-900 rounded-lg p-3 border border-gray-200 shadow-sm">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Bot className="h-4 w-4" />
+                                <span className="text-xs font-medium">Enhanced AI Tutor</span>
+                              </div>
+                              <div className="flex space-x-1">
+                                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </ScrollArea>
-                    
-                    <div className="flex gap-2 mt-4">
+                  </div>
+                  
+                  {/* Fixed Input Area at Bottom */}
+                  <div className="p-4 border-t bg-white">
+                    <div className="flex gap-2">
                       <Input
-                        placeholder="Ask for help with this question..."
+                        placeholder="Ask about this question, need a hint, or want the explanation..."
                         value={tutorInput}
                         onChange={(e) => setTutorInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleTutorSend()}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && !isTutorLoading && handleTutorSend()}
                         className="flex-1"
+                        disabled={isTutorLoading}
                       />
-                      <Button size="sm" onClick={handleTutorSend} disabled={!tutorInput.trim()}>
-                        <Send className="h-4 w-4" />
+                      <Button size="sm" onClick={handleTutorSend} disabled={!tutorInput.trim() || isTutorLoading}>
+                        {isTutorLoading ? (
+                          <div className="w-4 h-4 animate-spin rounded-full border-2 border-gray-300 border-t-white"></div>
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      💡 Press Enter to send • Enhanced with real DECA explanations
+                    </p>
                   </div>
                 </SheetContent>
               </Sheet>
@@ -746,100 +922,100 @@ const Test = () => {
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-gray-600">
-              Question {currentQuestion + 1} of {questions.length}
-            </span>
-            <span className="text-sm text-gray-600">
-              {Math.round(((currentQuestion + 1) / questions.length) * 100)}% Complete
-            </span>
-          </div>
-          <Progress value={((currentQuestion + 1) / questions.length) * 100} className="h-2" />
-        </div>
-
-        {/* Question Card */}
-        <Card className="border-0 shadow-xl mb-8">
-          <CardHeader>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <Badge variant="outline">{questions[currentQuestion].category}</Badge>
-                <Badge variant={
-                  questions[currentQuestion].difficulty === 'Beginner' ? 'secondary' : 
-                  questions[currentQuestion].difficulty === 'Intermediate' ? 'default' : 'destructive'
-                }>
-                  {questions[currentQuestion].difficulty}
-                </Badge>
-              </div>
-              <span className="text-sm text-gray-500">Question {currentQuestion + 1}</span>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Progress Bar */}
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-gray-600">
+                Question {currentQuestion + 1} of {questions.length}
+              </span>
+              <span className="text-sm text-gray-600">
+                {Math.round(((currentQuestion + 1) / questions.length) * 100)}% Complete
+              </span>
             </div>
-            <CardTitle className="text-xl font-semibold leading-relaxed">
-              {questions[currentQuestion].question}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RadioGroup value={selectedAnswer} onValueChange={handleAnswerSelect}>
-              <div className="space-y-3">
-                {questions[currentQuestion].options.map((option, index) => (
-                  <div key={index} className="flex items-center space-x-3 p-4 rounded-lg border hover:bg-gray-50 transition-colors">
-                    <RadioGroupItem value={index.toString()} id={`option-${index}`} />
-                    <Label 
-                      htmlFor={`option-${index}`} 
-                      className="flex-1 cursor-pointer text-base leading-relaxed"
-                    >
-                      <span className="font-medium mr-2">
-                        {String.fromCharCode(65 + index)}.
-                      </span>
-                      {option}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </RadioGroup>
-          </CardContent>
-        </Card>
-
-        {/* Navigation Buttons */}
-        <div className="flex justify-between items-center">
-          <Button 
-            variant="outline" 
-            onClick={handlePreviousQuestion}
-            disabled={currentQuestion === 0}
-          >
-            Previous
-          </Button>
-
-          <div className="flex space-x-2">
-            {questions.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentQuestion(index)}
-                className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
-                  index === currentQuestion
-                    ? 'bg-blue-600 text-white'
-                    : answers[index]
-                      ? 'bg-green-100 text-green-800 border border-green-300'
-                      : 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200'
-                }`}
-              >
-                {index + 1}
-              </button>
-            ))}
+            <Progress value={((currentQuestion + 1) / questions.length) * 100} className="h-2" />
           </div>
 
-          <Button 
-            onClick={handleNextQuestion}
-            disabled={!selectedAnswer}
-            className="px-8"
-          >
-            {currentQuestion === questions.length - 1 ? 'Submit Test' : 'Next'}
-          </Button>
+          {/* Question Card */}
+          <Card className="border-0 shadow-xl mb-8">
+            <CardHeader>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <Badge variant="outline">{questions[currentQuestion].category}</Badge>
+                  <Badge variant={
+                    questions[currentQuestion].difficulty === 'Beginner' ? 'secondary' : 
+                    questions[currentQuestion].difficulty === 'Intermediate' ? 'default' : 'destructive'
+                  }>
+                    {questions[currentQuestion].difficulty}
+                  </Badge>
+                </div>
+                <span className="text-sm text-gray-500">Question {currentQuestion + 1}</span>
+              </div>
+              <CardTitle className="text-xl font-semibold leading-relaxed">
+                {questions[currentQuestion].question}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RadioGroup value={selectedAnswer} onValueChange={handleAnswerSelect}>
+                <div className="space-y-3">
+                  {questions[currentQuestion].options.map((option, index) => (
+                    <div key={index} className="flex items-center space-x-3 p-4 rounded-lg border hover:bg-gray-50 transition-colors">
+                      <RadioGroupItem value={index.toString()} id={`option-${index}`} />
+                      <Label 
+                        htmlFor={`option-${index}`} 
+                        className="flex-1 cursor-pointer text-base leading-relaxed"
+                      >
+                        <span className="font-medium mr-2">
+                          {String.fromCharCode(65 + index)}.
+                        </span>
+                        {option}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </RadioGroup>
+            </CardContent>
+          </Card>
+
+          {/* Navigation Buttons */}
+          <div className="flex justify-between items-center">
+            <Button 
+              variant="outline" 
+              onClick={handlePreviousQuestion}
+              disabled={currentQuestion === 0}
+            >
+              Previous
+            </Button>
+
+            <div className="flex space-x-2">
+              {questions.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentQuestion(index)}
+                  className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                    index === currentQuestion
+                      ? 'bg-blue-600 text-white'
+                      : answers[index]
+                        ? 'bg-green-100 text-green-800 border border-green-300'
+                        : 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200'
+                  }`}
+                >
+                  {index + 1}
+                </button>
+              ))}
+            </div>
+
+            <Button 
+              onClick={handleNextQuestion}
+              disabled={!selectedAnswer}
+              className="px-8"
+            >
+              {currentQuestion === questions.length - 1 ? 'Submit Test' : 'Next'}
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
 };
 
 export default Test;

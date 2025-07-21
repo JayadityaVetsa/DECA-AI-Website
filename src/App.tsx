@@ -10,6 +10,7 @@ import FullTest from "./pages/FullTest";
 import Tutor from "./pages/Tutor";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import TestReview from "./pages/TestReview";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/full-test" element={<FullTest />} />
           <Route path="/tutor" element={<Tutor />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/review/:testId" element={<TestReview />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

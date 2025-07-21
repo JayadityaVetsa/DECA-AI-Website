@@ -16,54 +16,94 @@ import {
   BarChart3,
   AlertTriangle
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, query, orderBy } from "firebase/firestore";
 
 const Dashboard = () => {
   const [user, setUser] = useState<any>(null);
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [recentTests, setRecentTests] = useState<any[]>([]);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
+    const fetchDashboardData = async (firebaseUser: any) => {
+      setLoading(true);
+      setError("");
+      try {
+        const docRef = doc(db, "users", firebaseUser.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setUserData(docSnap.data());
+        } else {
+          setUserData(null);
+        }
+        // Fetch recent test results
+        const testResultsRef = collection(db, "users", firebaseUser.uid, "testResults");
+        const q = query(testResultsRef);
+        let tests = [];
+        try {
+          const querySnapshot = await getDocs(q);
+          tests = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            let formattedDate = "";
+            let sortDate = 0;
+            if (data.date && data.date.toDate) {
+              const d = data.date.toDate();
+              formattedDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+              sortDate = d.getTime();
+            } else if (data.createdAt) {
+              const d = new Date(data.createdAt);
+              formattedDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+              sortDate = d.getTime();
+            }
+            return {
+              id: doc.id,
+              category: data.category,
+              score: data.score,
+              date: formattedDate,
+              questions: data.questions,
+              type: data.type || "Practice",
+              sortDate,
+              questionData: data.questionData, // Added for dynamic score calculation
+              userAnswers: data.userAnswers // Added for dynamic score calculation
+            };
+          });
+          // Sort by sortDate descending
+          tests.sort((a, b) => b.sortDate - a.sortDate);
+        } catch (testErr) {
+          setError("Failed to fetch test results.");
+        }
+        setRecentTests(tests);
+      } catch (err: any) {
+        setUserData(null);
+      }
+      setLoading(false);
+    };
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-        try {
-          const docRef = doc(db, "users", firebaseUser.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setUserData(docSnap.data());
-          } else {
-            setError("User data not found.");
-          }
-        } catch (err: any) {
-          setError("Failed to fetch user data.");
-        }
-        setLoading(false);
+        await fetchDashboardData(firebaseUser);
       } else {
         setUser(null);
         setUserData(null);
+        setRecentTests([]);
         setLoading(false);
         navigate("/auth");
       }
     });
     return () => unsubscribe();
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   const handleSignOut = async () => {
     await signOut(auth);
     navigate("/auth");
   };
-
-  const recentTests = [
-    { id: 1, category: "Marketing", score: 85, date: "2024-06-20", questions: 25, type: "Practice" },
-    { id: 2, category: "Finance", score: 72, date: "2024-06-19", questions: 30, type: "Full Test" },
-    { id: 3, category: "Entrepreneurship", score: 91, date: "2024-06-18", questions: 20, type: "Practice" }
-  ];
 
   const weakAreas = [
     { topic: "Financial Analysis", accuracy: 45, improvement: "+12%" },
@@ -78,18 +118,30 @@ const Dashboard = () => {
     { title: "Community Helper", icon: "🤝", completed: true }
   ];
 
+  // Compute quick stats from recentTests
+  const totalQuestions = recentTests.reduce((sum, t) => sum + (t.questions || 0), 0);
+  const totalCorrect = recentTests.reduce((sum, t) => sum + Math.round((t.score / 100) * (t.questions || 0)), 0);
+  const accuracyRate = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+  // Compute streak (number of consecutive days with at least one test, ending today)
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  let streak = 0;
+  let dayCursor = new Date(today);
+  const testDates = recentTests.map(t => t.date).filter(Boolean);
+  while (true) {
+    const dayStr = `${dayCursor.getFullYear()}-${String(dayCursor.getMonth()+1).padStart(2, '0')}-${String(dayCursor.getDate()).padStart(2, '0')}`;
+    if (testDates.includes(dayStr)) {
+      streak++;
+      dayCursor.setDate(dayCursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="text-xl text-gray-700">Loading your dashboard...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="text-xl text-red-500">{error}</div>
       </div>
     );
   }
@@ -145,7 +197,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Total Questions</p>
-                  <p className="text-2xl font-bold text-gray-900">{userData?.totalQuestions || 0}</p>
+                  <p className="text-2xl font-bold text-gray-900">{totalQuestions}</p>
                 </div>
                 <BookOpen className="h-8 w-8 text-blue-600" />
               </div>
@@ -157,7 +209,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Accuracy Rate</p>
-                  <p className="text-2xl font-bold text-gray-900">{userData?.accuracy || 0}%</p>
+                  <p className="text-2xl font-bold text-gray-900">{accuracyRate}%</p>
                 </div>
                 <Target className="h-8 w-8 text-green-600" />
               </div>
@@ -169,7 +221,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Current Streak</p>
-                  <p className="text-2xl font-bold text-gray-900">{userData?.streak || 0} days</p>
+                  <p className="text-2xl font-bold text-gray-900">{streak} days</p>
                 </div>
                 <Award className="h-8 w-8 text-orange-600" />
               </div>
@@ -242,33 +294,61 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {recentTests.map((test) => (
-                    <div key={test.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                          test.type === 'Practice' ? 'bg-blue-100' : 'bg-red-100'
-                        }`}>
-                          {test.type === 'Practice' ? (
-                            <BookOpen className={`h-6 w-6 ${test.type === 'Practice' ? 'text-blue-600' : 'text-red-600'}`} />
-                          ) : (
-                            <AlertTriangle className="h-6 w-6 text-red-600" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{test.category}</p>
-                          <p className="text-sm text-gray-600">
-                            {test.questions} questions • {test.date} • {test.type}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <Badge variant={test.score >= 80 ? "default" : "secondary"}>
-                          {test.score}%
-                        </Badge>
-                        <ChevronRight className="h-4 w-4 text-gray-400" />
-                      </div>
+                  {error && (
+                    <div className="text-center text-gray-400 py-8">You have taken no tests so far.</div>
+                  )}
+                  {recentTests.length === 0 && !error ? (
+                    <div className="text-center text-gray-400 py-8">
+                      No recent tests yet. Take a test to see your results here!
                     </div>
-                  ))}
+                  ) : (
+                    recentTests.map((test) => {
+                      // Calculate score dynamically for each test
+                      let correct = 0;
+                      let answered = 0;
+                      if (test.questionData && test.userAnswers) {
+                        test.questionData.forEach((q: any, idx: number) => {
+                          const userAnswer = parseInt(test.userAnswers[idx]);
+                          if (!isNaN(userAnswer)) {
+                            answered++;
+                            if (userAnswer === q.correct) correct++;
+                          }
+                        });
+                      }
+                      const score = answered > 0 ? Math.round((correct / answered) * 100) : 0;
+                      return (
+                        <div
+                          key={test.id}
+                          className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                          onClick={() => navigate(`/review/${test.id}`)}
+                        >
+                          <div className="flex items-center space-x-4">
+                            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                              test.type === 'Practice' ? 'bg-blue-100' : 'bg-red-100'
+                            }`}>
+                              {test.type === 'Practice' ? (
+                                <BookOpen className={`h-6 w-6 ${test.type === 'Practice' ? 'text-blue-600' : 'text-red-600'}`} />
+                              ) : (
+                                <AlertTriangle className="h-6 w-6 text-red-600" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-900">{test.category}</p>
+                              <p className="text-sm text-gray-600">
+                                {test.questions} questions • {test.date} • {test.type}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-3">
+                            <Badge variant={score >= 80 ? "default" : "secondary"}>
+                              {score}%
+                            </Badge>
+                            <ChevronRight className="h-4 w-4 text-gray-400" />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </CardContent>
             </Card>

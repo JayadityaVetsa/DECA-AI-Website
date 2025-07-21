@@ -33,7 +33,8 @@ import { DECAQuestionGenerator, TestConfiguration, DECAQuestion } from "../lib/q
 import { DECA_EVENTS_DATABASE, PIManager } from "../lib/performanceIndicators";
 import { askGemini } from "../lib/gemini";
 import { findRelevantExplanations } from "../lib/tutorKnowledge";
-import { auth } from "../lib/firebase";
+import { db, auth } from "../lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 
 interface TutorMessage {
@@ -173,21 +174,64 @@ const Test = () => {
     }
   };
 
-  const handleSubmitTest = () => {
+  const handleSubmitTest = async () => {
     const newAnswers = [...answers];
     newAnswers[currentQuestion] = selectedAnswer;
     setAnswers(newAnswers);
     setShowResults(true);
+
+    // Save test result to Firestore
+    try {
+      const user = auth.currentUser;
+      const score = calculateScore();
+      const testType = event ? "Full Test" : "Practice";
+      const testData = {
+        category: cluster,
+        score,
+        date: serverTimestamp(),
+        createdAt: Date.now(),
+        questions: questions.length,
+        type: testType,
+        event: event || null,
+        questionData: questions.map(q => ({
+          question: q.question,
+          options: q.options,
+          correct: q.correct,
+          explanation: q.explanation,
+          category: q.category,
+          difficulty: q.difficulty
+        })),
+        userAnswers: newAnswers
+      };
+      if (user) {
+        console.log("Saving test result for user:", user.uid, testData);
+        await addDoc(
+          collection(db, "users", user.uid, "testResults"),
+          testData
+        );
+      } else {
+        alert("You are not logged in. Test result not saved.");
+        console.error("No user found when trying to save test result.");
+      }
+    } catch (err) {
+      alert("Failed to save test result. See console for details.");
+      console.error("Failed to save test result:", err);
+    }
   };
 
   const calculateScore = () => {
     let correct = 0;
+    let answered = 0;
     answers.forEach((answer, index) => {
-      if (parseInt(answer) === questions[index].correct) {
-        correct++;
+      if (answer !== undefined && answer !== "") {
+        answered++;
+        if (parseInt(answer) === questions[index].correct) {
+          correct++;
+        }
       }
     });
-    return Math.round((correct / questions.length) * 100);
+    if (answered === 0) return 0;
+    return Math.round((correct / answered) * 100);
   };
 
   const restartTest = () => {

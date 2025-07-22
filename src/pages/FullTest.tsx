@@ -17,6 +17,8 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { auth, db } from "../lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 const FullTest = () => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -143,11 +145,40 @@ const FullTest = () => {
     }
   };
 
-  const handleSubmitTest = () => {
+  const handleSubmitTest = async () => {
     const newAnswers = [...answers];
     newAnswers[currentQuestion] = selectedAnswer;
     setAnswers(newAnswers);
     setShowResults(true);
+
+    // Save test result to Firestore
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const score = calculateScore();
+        await addDoc(
+          collection(db, "users", user.uid, "testResults"),
+          {
+            category: "Full Test",
+            score,
+            date: serverTimestamp(),
+            createdAt: Date.now(),
+            questions: questions.length,
+            type: "Full Test",
+            questionData: questions.map(q => ({
+              question: q.question,
+              options: q.options,
+              correct: q.correct,
+              explanation: q.explanation
+            })),
+            userAnswers: newAnswers
+          }
+        );
+      }
+    } catch (err) {
+      // Optionally handle error (e.g., show toast)
+      console.error("Failed to save full test result:", err);
+    }
   };
 
   const calculateScore = () => {

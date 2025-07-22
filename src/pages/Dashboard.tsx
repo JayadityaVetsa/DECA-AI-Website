@@ -168,6 +168,9 @@ const Dashboard = () => {
               <Link to="/tutor">
                 <Button variant="ghost">AI Tutor</Button>
               </Link>
+              <Link to="/forum">
+                <Button variant="ghost">Forum</Button>
+              </Link>
               <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
             </div>
           </div>

@@ -34,8 +34,10 @@ import { DECA_EVENTS_DATABASE, PIManager } from "../lib/performanceIndicators";
 import { askGemini } from "../lib/gemini";
 import { findRelevantExplanations } from "../lib/tutorKnowledge";
 import { db, auth } from "../lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { signOut } from "firebase/auth";
+import Avatar from "react-avatar";
+import ReactMarkdown from "react-markdown";
 
 interface TutorMessage {
   id: number;
@@ -65,6 +67,9 @@ const Test = () => {
     medium: 40, 
     hard: 20
   });
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUserPic, setCurrentUserPic] = useState<string>("");
+  const [showTutor, setShowTutor] = useState(false);
 
   const navigate = useNavigate();
 
@@ -140,6 +145,22 @@ const Test = () => {
       }]);
     }
   }, [currentQuestion, testStarted]);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        setCurrentUser(firebaseUser);
+        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (userDoc.exists()) {
+          setCurrentUserPic(userDoc.data().profilePicUrl || "");
+        }
+      } else {
+        setCurrentUser(null);
+        setCurrentUserPic("");
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -441,9 +462,9 @@ Student's question: ${userMessage.content}`;
 
   if (!testStarted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
         {/* Navigation */}
-        <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+        <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <Link to="/" className="flex items-center space-x-2">
@@ -462,6 +483,18 @@ Student's question: ${userMessage.content}`;
                 <Link to="/tutor">
                   <Button variant="ghost">AI Tutor</Button>
                 </Link>
+                {/* Profile Avatar */}
+                <Link to="/profile">
+                  {currentUserPic ? (
+                    <img
+                      src={currentUserPic}
+                      alt="Profile"
+                      className="w-9 h-9 rounded-full object-cover border-2 border-blue-300 shadow"
+                    />
+                  ) : currentUser ? (
+                    <Avatar name={currentUser.displayName || currentUser.email || "User"} size="36" round={true} />
+                  ) : null}
+                </Link>
                 <Button variant="outline" size="sm" onClick={handleSignOut}>
                   <LogOut className="h-4 w-4 sm:mr-2" />
                   <span className="hidden sm:inline">Sign Out</span>
@@ -471,45 +504,24 @@ Student's question: ${userMessage.content}`;
           </div>
         </nav>
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="text-center pb-6">
-              <CardTitle className="text-3xl font-bold mb-4">
-                DECA Practice Test
-                <Badge className="ml-3 bg-green-100 text-green-800 hover:bg-green-100">
-                  Enhanced AI Tutor
-                </Badge>
-              </CardTitle>
-              <CardDescription className="text-lg">
-                Customize your test with AI-generated questions based on DECA Performance Indicators
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8">
-              {/* Cluster & Event Selection */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-10">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4 text-center">DECA Practice Test <span className="ml-2 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200">Enhanced AI Tutor</span></h1>
+            <p className="text-lg text-gray-700 dark:text-gray-300 mb-8 text-center">Customize your test with AI-generated questions based on DECA Performance Indicators</p>
+            <form>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    DECA Cluster
-                  </label>
-                  <select
-                    className="w-full border rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    value={cluster}
-                    onChange={e => {
-                      setCluster(e.target.value);
-                      setEvent(''); // Reset event when cluster changes
-                    }}
-                  >
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">DECA Cluster</label>
+                  <select className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     {PIManager.getAllClusters().map(clusterName => (
                       <option key={clusterName} value={clusterName}>{clusterName}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Specific Event (Optional)
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Specific Event (Optional)</label>
                   <select
-                    className="w-full border rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={event}
                     onChange={e => setEvent(e.target.value)}
                   >
@@ -520,13 +532,9 @@ Student's question: ${userMessage.content}`;
                   </select>
                 </div>
               </div>
-
-              {/* Test Configuration */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Number of Questions: {customQuestionCount}
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Number of Questions: {customQuestionCount}</label>
                   <input
                     type="range"
                     min="5"
@@ -534,17 +542,15 @@ Student's question: ${userMessage.content}`;
                     step="5"
                     value={customQuestionCount}
                     onChange={e => setCustomQuestionCount(parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer"
                   />
-                  <div className="flex justify-between text-sm text-gray-500 mt-1">
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
                     <span>5</span>
                     <span>50</span>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Time Limit: {customTimeLimit} minutes
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Time Limit: {customTimeLimit} minutes</label>
                   <input
                     type="range"
                     min="10"
@@ -552,23 +558,19 @@ Student's question: ${userMessage.content}`;
                     step="5"
                     value={customTimeLimit}
                     onChange={e => setCustomTimeLimit(parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer"
                   />
-                  <div className="flex justify-between text-sm text-gray-500 mt-1">
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
                     <span>10 min</span>
                     <span>120 min</span>
                   </div>
                 </div>
               </div>
-
-              {/* Difficulty Distribution */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Difficulty Distribution
-                </label>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <label className="block text-sm text-gray-600 mb-2">Easy: {difficultyDistribution.easy}%</label>
+              <div className="mb-8">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Difficulty Distribution</label>
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Easy: {difficultyDistribution.easy}%</label>
                     <input
                       type="range"
                       min="0"
@@ -581,11 +583,11 @@ Student's question: ${userMessage.content}`;
                         const hard = remaining - medium;
                         setDifficultyDistribution({ easy, medium, hard });
                       }}
-                      className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                      className="w-full h-2 bg-green-200 dark:bg-green-900 rounded-lg appearance-none cursor-pointer"
                     />
                   </div>
-                  <div className="text-center">
-                    <label className="block text-sm text-gray-600 mb-2">Medium: {difficultyDistribution.medium}%</label>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Medium: {difficultyDistribution.medium}%</label>
                     <input
                       type="range"
                       min="0"
@@ -598,11 +600,11 @@ Student's question: ${userMessage.content}`;
                         const hard = remaining - easy;
                         setDifficultyDistribution({ easy, medium, hard });
                       }}
-                      className="w-full h-2 bg-yellow-200 rounded-lg appearance-none cursor-pointer"
+                      className="w-full h-2 bg-yellow-200 dark:bg-yellow-900 rounded-lg appearance-none cursor-pointer"
                     />
                   </div>
-                  <div className="text-center">
-                    <label className="block text-sm text-gray-600 mb-2">Hard: {difficultyDistribution.hard}%</label>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Hard: {difficultyDistribution.hard}%</label>
                     <input
                       type="range"
                       min="0"
@@ -615,69 +617,43 @@ Student's question: ${userMessage.content}`;
                         const medium = remaining - easy;
                         setDifficultyDistribution({ easy, medium, hard });
                       }}
-                      className="w-full h-2 bg-red-200 rounded-lg appearance-none cursor-pointer"
+                      className="w-full h-2 bg-red-200 dark:bg-red-900 rounded-lg appearance-none cursor-pointer"
                     />
                   </div>
                 </div>
               </div>
-
-              {/* API Status Info */}
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium text-gray-700">System Status</span>
-                  </div>
-                  <span className="text-xs text-gray-500">Gemini API Free Tier: 50 requests/day</span>
+              <div className="bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6 mt-8 text-gray-700 dark:text-gray-200 shadow-sm mb-8">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+                  <span className="font-semibold">System Status</span>
                 </div>
-                <div className="mt-2 text-xs text-gray-600">
-                  ⚡ <strong>Batch Generation:</strong> Generates all {customQuestionCount} questions in 1 API call<br />
-                  📚 <strong>Local Bank:</strong> {customQuestionCount > 15 ? '15+' : customQuestionCount} high-quality backup questions available<br />
-                  🔄 <strong>Smart Fallback:</strong> Seamless transition when API limits reached
-                </div>
+                <ul className="text-sm space-y-1">
+                  <li><span className="font-bold">⚡ Batch Generation:</span> Generates all {customQuestionCount} questions in 1 API call</li>
+                  <li><span className="font-bold">📚 Local Bank:</span> {customQuestionCount > 15 ? '15+' : customQuestionCount} high-quality backup questions available</li>
+                  <li><span className="font-bold">🤖 Smart Fallback:</span> Seamless transition when API limits reached</li>
+                </ul>
+                <div className="text-xs text-right text-gray-500 dark:text-gray-400 mt-2">Gemini API Free Tier: 50 requests/day</div>
               </div>
-
-              {/* Test Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600 mb-2">{customQuestionCount}</div>
-                  <div className="text-sm text-gray-600">Questions</div>
-                </div>
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600 mb-2">{customTimeLimit}</div>
-                  <div className="text-sm text-gray-600">Minutes</div>
-                </div>
-                <div className="p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600 mb-2">Enhanced</div>
-                  <div className="text-sm text-gray-600">AI Tutor</div>
-                </div>
-              </div>
-
-              {/* Start Button */}
-              <div className="text-center">
+              <div className="text-center mt-8">
                 <Button 
                   onClick={handleStartTest} 
                   size="lg" 
-                  className="text-lg px-8 py-4"
+                  className="text-lg px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-800 rounded-xl shadow-md transition-colors"
                   disabled={isGeneratingQuestions}
+                  type="button"
                 >
                   {isGeneratingQuestions ? (
                     <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      Preparing {customQuestionCount} Questions...
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2 inline-block"></div>
+                      Preparing Questions...
                     </>
                   ) : (
                     'Start Practice Test'
                   )}
                 </Button>
-                <p className="text-sm text-gray-500 mt-3">
-                  🚀 <strong>Batch Generation:</strong> All questions generated in 1 API call (super fast!) <br />
-                  📚 <strong>Smart Fallback:</strong> High-quality local questions when API limits reached <br />
-                  🤖 <strong>Enhanced AI Tutor:</strong> Available during test with real DECA knowledge
-                </p>
               </div>
-            </CardContent>
-          </Card>
+            </form>
+          </div>
         </div>
       </div>
     );
@@ -689,157 +665,249 @@ Student's question: ${userMessage.content}`;
     const correctAnswers = answers.filter((answer, index) => 
       parseInt(answer) === questions[index].correct
     ).length;
+    const incorrect = questions.length - correctAnswers;
+    const timeTaken = (customTimeLimit * 60) - timeLeft;
 
+    // Find the last question and user's answer for immediate results
+    const lastQuestion = questions[questions.length - 1];
+    const lastUserAnswer = parseInt(answers[answers.length - 1]);
+    const isLastCorrect = lastUserAnswer === lastQuestion.correct;
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        {/* Navigation */}
-        <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <Link to="/" className="flex items-center space-x-2">
-                <Brain className="h-8 w-8 text-blue-600" />
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  DECA AI Platform
-                </span>
-              </Link>
-              <div className="flex items-center space-x-4">
-                <Button onClick={restartTest} variant="outline">
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Retake Test
-                </Button>
-                <Link to="/dashboard">
-                  <Button variant="ghost">
-                    <Home className="h-4 w-4 mr-2" />
-                    Dashboard
-                  </Button>
-                </Link>
-              </div>
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors py-8">
+        <div className="max-w-4xl mx-auto px-4">
+          {/* Score Summary */}
+          <div className="flex flex-col md:flex-row justify-center gap-6 mb-10">
+            <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col items-center">
+              <div className="text-5xl font-bold text-green-600 dark:text-green-300 mb-2">{correctAnswers}</div>
+              <div className="text-lg text-gray-700 dark:text-gray-200">Correct</div>
+            </div>
+            <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col items-center">
+              <div className="text-5xl font-bold text-red-600 dark:text-red-300 mb-2">{incorrect}</div>
+              <div className="text-lg text-gray-700 dark:text-gray-200">Incorrect</div>
+            </div>
+            <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col items-center">
+              <div className="text-5xl font-bold text-blue-600 dark:text-blue-300 mb-2">{formatTime(timeTaken)}</div>
+              <div className="text-lg text-gray-700 dark:text-gray-200">Time Taken</div>
+            </div>
+            <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col items-center">
+              <div className={`text-5xl font-bold mb-2 ${score >= 80 ? 'text-green-400' : score >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>{score}%</div>
+              <div className="text-lg text-gray-700 dark:text-gray-200">Final Score</div>
             </div>
           </div>
+
+          {/* Immediate Results for Last Question */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 mt-10">
+            <div className="flex items-center gap-3 mb-2">
+              <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{lastQuestion.category}</Badge>
+              <Badge variant={lastQuestion.difficulty === 'Beginner' ? 'secondary' : lastQuestion.difficulty === 'Intermediate' ? 'default' : 'destructive'} className={lastQuestion.difficulty === 'Beginner' ? '' : lastQuestion.difficulty === 'Intermediate' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}>{lastQuestion.difficulty}</Badge>
+              {isLastCorrect ? (
+                <span className="text-green-600 dark:text-green-300 font-bold">✔</span>
+              ) : (
+                <span className="text-red-600 dark:text-red-300 font-bold">✘</span>
+              )}
+              <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">Question {questions.length}</span>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{lastQuestion.question}</h3>
+            <div className="space-y-3 mb-4">
+              {lastQuestion.options.map((option: string, optionIndex: number) => {
+                const isUserAnswer = lastUserAnswer === optionIndex;
+                const isCorrectAnswer = lastQuestion.correct === optionIndex;
+                let optionBg = 'bg-gray-100 dark:bg-gray-700';
+                let optionText = 'text-gray-900 dark:text-gray-100';
+                let optionFont = '';
+                if (isCorrectAnswer) {
+                  optionBg = 'bg-green-100 dark:bg-green-900/40';
+                  optionText = 'text-green-700 dark:text-green-200';
+                  optionFont = 'font-bold';
+                } else if (isUserAnswer && !isCorrectAnswer) {
+                  optionBg = 'bg-red-100 dark:bg-red-900/40';
+                  optionText = 'text-red-700 dark:text-red-200';
+                  optionFont = 'font-bold';
+                } else if (isUserAnswer) {
+                  optionBg = 'bg-blue-100 dark:bg-blue-800/40';
+                  optionText = 'text-blue-700 dark:text-blue-200';
+                  optionFont = 'font-bold';
+                }
+                return (
+                  <div
+                    key={optionIndex}
+                    className={`p-4 rounded-xl border ${optionBg} border-gray-200 dark:border-gray-600 flex items-center gap-2 ${optionText} ${optionFont}`}
+                  >
+                    <span className="font-bold mr-2">{String.fromCharCode(65 + optionIndex)}.</span>
+                    <span>{option}</span>
+                    {isCorrectAnswer && <span className="ml-auto">✔</span>}
+                    {isUserAnswer && !isCorrectAnswer && <span className="ml-auto">✘</span>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg p-6 mt-2">
+              <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">Explanation:</h4>
+              <p className="text-blue-700 dark:text-blue-100 font-medium">{lastQuestion.explanation}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (testStarted && !showResults) {
+    return (
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors flex flex-col">
+        {/* Top Bar */}
+        <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40 flex items-center justify-between px-8 py-4">
+          <div className="flex items-center space-x-2">
+            <Brain className="h-7 w-7 text-blue-600" />
+            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">DECA AI Platform</span>
+          </div>
+          <div className="text-lg font-mono text-gray-700 dark:text-white flex items-center gap-2">
+            <Clock className="h-5 w-5" /> {formatTime(timeLeft)}
+          </div>
         </nav>
-
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Score Summary */}
-          <Card className="border-0 shadow-xl mb-8">
-            <CardHeader className="text-center">
-              <CardTitle className="text-3xl font-bold mb-2">
-                Test Complete! 🎉
-              </CardTitle>
-              <div className="text-6xl font-bold mb-4">
-                <span className={score >= 80 ? 'text-green-600' : score >= 60 ? 'text-yellow-600' : 'text-red-600'}>
-                  {score}%
-                </span>
+        <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full py-8 px-4 gap-8">
+          {/* Main Test Card */}
+          <div className="flex-1 flex flex-col items-center relative">
+            {/* Floating AI Tutor Button */}
+            <button
+              className="fixed bottom-8 right-8 z-50 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 text-lg font-semibold"
+              onClick={() => setShowTutor(true)}
+              style={{ display: showTutor ? 'none' : 'flex' }}
+            >
+              <Bot className="h-5 w-5" /> Ask AI Tutor
+            </button>
+            <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{cluster}</Badge>
+                <Badge variant="destructive" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">{questions[currentQuestion]?.difficulty || 'Easy'}</Badge>
               </div>
-              <CardDescription className="text-lg">
-                You got {correctAnswers} out of {questions.length} questions correct
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600 mb-2">{correctAnswers}</div>
-                  <div className="text-sm text-gray-600">Correct</div>
-                </div>
-                <div className="p-4 bg-red-50 rounded-lg">
-                  <div className="text-2xl font-bold text-red-600 mb-2">{questions.length - correctAnswers}</div>
-                  <div className="text-sm text-gray-600">Incorrect</div>
-                </div>
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600 mb-2">{formatTime((customTimeLimit * 60) - timeLeft)}</div>
-                  <div className="text-sm text-gray-600">Time Taken</div>
-                </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">{questions[currentQuestion]?.question}</h2>
+              <div className="space-y-4">
+                {questions[currentQuestion]?.options.map((option, idx) => {
+                  const isSelected = selectedAnswer === idx.toString();
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedAnswer(idx.toString())}
+                      className={`w-full text-left px-5 py-4 rounded-xl border transition-colors font-medium text-lg
+                        ${isSelected ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-800 hover:text-blue-900 dark:hover:text-white'}
+                      `}
+                    >
+                      <span className="font-bold mr-2">{String.fromCharCode(65 + idx)}.</span> {option}
+                    </button>
+                  );
+                })}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Detailed Results */}
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Question Review</h2>
-            {questions.map((question, index) => {
-              const userAnswer = parseInt(answers[index]);
-              const isCorrect = userAnswer === question.correct;
-              
-              return (
-                <Card key={question.id} className="border-0 shadow-lg">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <Badge variant="outline">{question.category}</Badge>
-                        <Badge variant={question.difficulty === 'Beginner' ? 'secondary' : 
-                                      question.difficulty === 'Intermediate' ? 'default' : 'destructive'}>
-                          {question.difficulty}
-                        </Badge>
-                        {isCorrect ? (
-                          <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-red-600" />
-                        )}
-                      </div>
-                      <span className="text-sm text-gray-500">Question {index + 1}</span>
-                    </div>
-                    <CardTitle className="text-lg font-semibold leading-relaxed">
-                      {question.question}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      {question.options.map((option, optionIndex) => {
-                        const isUserAnswer = userAnswer === optionIndex;
-                        const isCorrectAnswer = question.correct === optionIndex;
-                        
-                        return (
-                          <div 
-                            key={optionIndex}
-                            className={`p-3 rounded-lg border ${
-                              isCorrectAnswer 
-                                ? 'bg-green-50 border-green-200 text-green-800' 
-                                : isUserAnswer 
-                                  ? 'bg-red-50 border-red-200 text-red-800'
-                                  : 'bg-gray-50 border-gray-200'
-                            }`}
-                          >
-                            <div className="flex items-center space-x-2">
-                              <span className="font-medium">
-                                {String.fromCharCode(65 + optionIndex)}.
-                              </span>
-                              <span>{option}</span>
-                              {isCorrectAnswer && <CheckCircle2 className="h-4 w-4 text-green-600 ml-auto" />}
-                              {isUserAnswer && !isCorrectAnswer && <XCircle className="h-4 w-4 text-red-600 ml-auto" />}
+            </div>
+            {/* Pagination & Navigation */}
+            <div className="flex items-center justify-between w-full max-w-2xl mt-2">
+              <Button onClick={handlePreviousQuestion} disabled={currentQuestion === 0} className="bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg px-6 py-2 mr-2 disabled:opacity-50">Previous</Button>
+              <div className="flex gap-2">
+                {questions.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentQuestion(idx)}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold border transition-colors
+                      ${currentQuestion === idx ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-800 hover:text-blue-900 dark:hover:text-white'}
+                    `}
+                  >
+                    {idx + 1}
+                  </button>
+                ))}
+              </div>
+              <Button onClick={handleNextQuestion} disabled={currentQuestion === questions.length - 1} className="bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg px-6 py-2 ml-2 disabled:opacity-50">Next</Button>
+            </div>
+            <div className="w-full max-w-2xl flex justify-end mt-8">
+              <Button onClick={handleSubmitTest} className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl shadow-md text-lg">Submit Test</Button>
+            </div>
+          </div>
+          {/* AI Tutor Sidebar (slide-in/modal style) */}
+          {showTutor && (
+            <div className="fixed inset-0 z-50 flex justify-end bg-black/40 dark:bg-black/60">
+              <div className="w-full max-w-md h-full bg-gradient-to-b from-white via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900 rounded-l-2xl shadow-2xl flex flex-col p-0 relative animate-slide-in-right">
+                {/* Header */}
+                <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-tl-2xl">
+                  <Bot className="h-5 w-5 text-blue-600" />
+                  <span className="font-bold text-gray-900 dark:text-white text-lg">Enhanced AI Tutor</span>
+                  <span className="ml-2 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200">Real DECA Knowledge</span>
+                  <button
+                    className="ml-auto text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl"
+                    onClick={() => setShowTutor(false)}
+                    aria-label="Close AI Tutor"
+                  >
+                    ×
+                  </button>
+                </div>
+                {/* Chat Area */}
+                <div className="flex-1 flex flex-col min-h-0 px-4 py-6 overflow-y-auto">
+                  <div className="space-y-6">
+                    {tutorMessages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`flex items-end gap-2 max-w-[80%]`}> 
+                          {message.role === 'ai' && (
+                            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                              <Bot className="h-4 w-4 text-blue-600" />
                             </div>
+                          )}
+                          <div className={`rounded-2xl px-4 py-3 shadow-md whitespace-pre-wrap break-words text-sm leading-relaxed
+                            ${message.role === 'user'
+                              ? 'bg-blue-600 text-white rounded-br-md'
+                              : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-md'}
+                          `}>
+                            <ReactMarkdown>{message.content}</ReactMarkdown>
                           </div>
-                        );
-                      })}
-                    </div>
-                    
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="font-semibold text-blue-800 mb-2">Explanation:</h4>
-                      <p className="text-blue-700">{question.explanation}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
-            <Button onClick={restartTest} size="lg" className="px-8">
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Take Another Test
-            </Button>
-            <Link to="/tutor">
-              <Button variant="outline" size="lg" className="px-8">
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Get AI Tutoring
-              </Button>
-            </Link>
-            <Link to="/dashboard">
-              <Button variant="outline" size="lg" className="px-8">
-                <Home className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </Link>
-          </div>
+                          {message.role === 'user' && (
+                            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+                              <User className="h-4 w-4 text-white" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {isTutorLoading && (
+                      <div className="flex justify-start">
+                        <div className="flex items-end gap-2 max-w-[80%]">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                            <Bot className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div className="rounded-2xl px-4 py-3 shadow-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-md flex gap-2 items-center">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* Input Area */}
+                <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-b-2xl">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Ask about this question, need a hint, or want the explanation..."
+                      value={tutorInput}
+                      onChange={(e) => setTutorInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && !isTutorLoading && handleTutorSend()}
+                      className="flex-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 px-4 py-3 shadow-sm"
+                      disabled={isTutorLoading}
+                    />
+                    <Button size="icon" onClick={handleTutorSend} disabled={!tutorInput.trim() || isTutorLoading} className="rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-md">
+                      {isTutorLoading ? (
+                        <div className="w-4 h-4 animate-spin rounded-full border-2 border-gray-300 border-t-white"></div>
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                    💡 Press Enter to send • Enhanced with real DECA explanations
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

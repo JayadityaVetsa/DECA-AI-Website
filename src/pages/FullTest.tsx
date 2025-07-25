@@ -14,11 +14,13 @@ import {
   RotateCcw,
   Home,
   MessageCircle,
-  AlertTriangle
+  AlertTriangle,
+  Bot
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { auth, db } from "../lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
+import Avatar from "react-avatar";
 
 const FullTest = () => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -27,6 +29,9 @@ const FullTest = () => {
   const [showResults, setShowResults] = useState(false);
   const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes
   const [testStarted, setTestStarted] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUserPic, setCurrentUserPic] = useState<string>("");
+  const [showTutor, setShowTutor] = useState(false);
 
   // Sample AI-generated questions (same as practice test)
   const questions = [
@@ -111,6 +116,22 @@ const FullTest = () => {
       handleSubmitTest();
     }
   }, [timeLeft, testStarted, showResults]);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        setCurrentUser(firebaseUser);
+        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (userDoc.exists()) {
+          setCurrentUserPic(userDoc.data().profilePicUrl || "");
+        }
+      } else {
+        setCurrentUser(null);
+        setCurrentUserPic("");
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -202,9 +223,9 @@ const FullTest = () => {
 
   if (!testStarted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50">
+      <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900 transition-colors">
         {/* Navigation */}
-        <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+        <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <Link to="/" className="flex items-center space-x-2">
@@ -220,13 +241,25 @@ const FullTest = () => {
                 <Link to="/tutor">
                   <Button variant="ghost">AI Tutor</Button>
                 </Link>
+                {/* Profile Avatar */}
+                <Link to="/profile">
+                  {currentUserPic ? (
+                    <img
+                      src={currentUserPic}
+                      alt="Profile"
+                      className="w-9 h-9 rounded-full object-cover border-2 border-blue-300 shadow"
+                    />
+                  ) : currentUser ? (
+                    <Avatar name={currentUser.displayName || currentUser.email || "User"} size="36" round={true} />
+                  ) : null}
+                </Link>
               </div>
             </div>
           </div>
         </nav>
 
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <Card className="border-0 shadow-xl">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8">
             <CardHeader className="text-center pb-8">
               <CardTitle className="text-3xl font-bold mb-4 text-red-600">
                 DECA Full Test (No AI Assistance)
@@ -281,7 +314,7 @@ const FullTest = () => {
                 </div>
               </div>
             </CardContent>
-          </Card>
+          </div>
         </div>
       </div>
     );
@@ -293,68 +326,31 @@ const FullTest = () => {
     const correctAnswers = answers.filter((answer, index) => 
       parseInt(answer) === questions[index].correct
     ).length;
+    const incorrectAnswers = questions.length - correctAnswers;
+    const timeTaken = 1800 - timeLeft;
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50">
-        {/* Navigation */}
-        <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <Link to="/" className="flex items-center space-x-2">
-                <Brain className="h-8 w-8 text-blue-600" />
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  DECA AI Platform
-                </span>
-              </Link>
-              <div className="flex items-center space-x-4">
-                <Button onClick={restartTest} variant="outline">
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Retake Test
-                </Button>
-                <Link to="/dashboard">
-                  <Button variant="ghost">
-                    <Home className="h-4 w-4 mr-2" />
-                    Dashboard
-                  </Button>
-                </Link>
-              </div>
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors py-8">
+        <div className="max-w-4xl mx-auto px-4">
+          {/* Score Summary */}
+          <div className="flex flex-col md:flex-row justify-center gap-6 mb-10">
+            <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col items-center">
+              <div className="text-5xl font-bold text-green-600 dark:text-green-300 mb-2">{correctAnswers}</div>
+              <div className="text-lg text-gray-700 dark:text-gray-200">Correct</div>
+            </div>
+            <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col items-center">
+              <div className="text-5xl font-bold text-red-600 dark:text-red-300 mb-2">{incorrectAnswers}</div>
+              <div className="text-lg text-gray-700 dark:text-gray-200">Incorrect</div>
+            </div>
+            <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col items-center">
+              <div className="text-5xl font-bold text-blue-600 dark:text-blue-300 mb-2">{formatTime(timeTaken)}</div>
+              <div className="text-lg text-gray-700 dark:text-gray-200">Time Taken</div>
+            </div>
+            <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col items-center">
+              <div className={`text-5xl font-bold mb-2 ${score >= 80 ? 'text-green-400' : score >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>{score}%</div>
+              <div className="text-lg text-gray-700 dark:text-gray-200">Final Score</div>
             </div>
           </div>
-        </nav>
-
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Score Summary */}
-          <Card className="border-0 shadow-xl mb-8">
-            <CardHeader className="text-center">
-              <CardTitle className="text-3xl font-bold mb-2 text-red-600">
-                Full Test Complete! 🎯
-              </CardTitle>
-              <div className="text-6xl font-bold mb-4">
-                <span className={score >= 80 ? 'text-green-600' : score >= 60 ? 'text-yellow-600' : 'text-red-600'}>
-                  {score}%
-                </span>
-              </div>
-              <CardDescription className="text-lg">
-                You got {correctAnswers} out of {questions.length} questions correct without AI assistance
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600 mb-2">{correctAnswers}</div>
-                  <div className="text-sm text-gray-600">Correct</div>
-                </div>
-                <div className="p-4 bg-red-50 rounded-lg">
-                  <div className="text-2xl font-bold text-red-600 mb-2">{questions.length - correctAnswers}</div>
-                  <div className="text-sm text-gray-600">Incorrect</div>
-                </div>
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600 mb-2">{formatTime(1800 - timeLeft)}</div>
-                  <div className="text-sm text-gray-600">Time Taken</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Detailed Results */}
           <div className="space-y-6">
@@ -451,10 +447,118 @@ const FullTest = () => {
     );
   }
 
+  if (testStarted && !showResults) {
+    return (
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors flex flex-col">
+        {/* Top Bar */}
+        <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40 flex items-center justify-between px-8 py-4">
+          <div className="flex items-center space-x-2">
+            <Brain className="h-7 w-7 text-blue-600" />
+            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">DECA AI Platform</span>
+          </div>
+          <div className="text-lg font-mono text-gray-700 dark:text-white flex items-center gap-2">
+            <Clock className="h-5 w-5" /> {formatTime(timeLeft)}
+          </div>
+        </nav>
+        <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full py-8 px-4 gap-8">
+          {/* Main Test Card */}
+          <div className="flex-1 flex flex-col items-center relative">
+            {/* Floating AI Tutor Button */}
+            <button
+              className="fixed bottom-8 right-8 z-50 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 text-lg font-semibold"
+              onClick={() => setShowTutor(true)}
+              style={{ display: showTutor ? 'none' : 'flex' }}
+            >
+              <Bot className="h-5 w-5" /> Ask AI Tutor
+            </button>
+            <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Marketing</Badge>
+                <Badge variant="destructive" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Intermediate</Badge>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">A company wants to launch a new eco-friendly product line. Which market segmentation strategy would be most effective for targeting environmentally conscious consumers?</h2>
+              <div className="space-y-4">
+                <button
+                  onClick={() => setSelectedAnswer("0")}
+                  className={`w-full text-left px-5 py-4 rounded-xl border transition-colors font-medium text-lg
+                    ${selectedAnswer === "0" ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-800 hover:text-blue-900 dark:hover:text-white'}
+                  `}
+                >
+                  <span className="font-bold mr-2">A.</span> Geographic segmentation based on urban vs. rural areas
+                </button>
+                <button
+                  onClick={() => setSelectedAnswer("1")}
+                  className={`w-full text-left px-5 py-4 rounded-xl border transition-colors font-medium text-lg
+                    ${selectedAnswer === "1" ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-800 hover:text-blue-900 dark:hover:text-white'}
+                  `}
+                >
+                  <span className="font-bold mr-2">B.</span> Psychographic segmentation based on lifestyle and values
+                </button>
+                <button
+                  onClick={() => setSelectedAnswer("2")}
+                  className={`w-full text-left px-5 py-4 rounded-xl border transition-colors font-medium text-lg
+                    ${selectedAnswer === "2" ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-800 hover:text-blue-900 dark:hover:text-white'}
+                  `}
+                >
+                  <span className="font-bold mr-2">C.</span> Demographic segmentation based on age groups
+                </button>
+                <button
+                  onClick={() => setSelectedAnswer("3")}
+                  className={`w-full text-left px-5 py-4 rounded-xl border transition-colors font-medium text-lg
+                    ${selectedAnswer === "3" ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-800 hover:text-blue-900 dark:hover:text-white'}
+                  `}
+                >
+                  <span className="font-bold mr-2">D.</span> Behavioral segmentation based on purchase frequency
+                </button>
+              </div>
+            </div>
+            {/* Pagination & Navigation */}
+            <div className="flex items-center justify-between w-full max-w-2xl mt-2">
+              <Button onClick={handlePreviousQuestion} disabled={currentQuestion === 0} className="bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg px-6 py-2 mr-2 disabled:opacity-50">Previous</Button>
+              <div className="flex gap-2">
+                {questions.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentQuestion(idx)}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold border transition-colors
+                      ${currentQuestion === idx ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-blue-800 hover:text-blue-900 dark:hover:text-white'}
+                    `}
+                  >
+                    {idx + 1}
+                  </button>
+                ))}
+              </div>
+              <Button onClick={handleNextQuestion} disabled={currentQuestion === questions.length - 1} className="bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg px-6 py-2 ml-2 disabled:opacity-50">Next</Button>
+            </div>
+            <div className="w-full max-w-2xl flex justify-end mt-8">
+              <Button onClick={handleSubmitTest} className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl shadow-md text-lg">Submit Test</Button>
+            </div>
+          </div>
+          {/* AI Tutor Sidebar (slide-in/modal style) */}
+          {showTutor && (
+            <div className="fixed inset-0 z-50 flex justify-end bg-black/40 dark:bg-black/60">
+              <div className="w-full max-w-md h-full bg-gray-100 dark:bg-gray-900 rounded-l-2xl shadow-2xl flex flex-col p-6 relative animate-slide-in-right">
+                <button
+                  className="absolute top-4 right-4 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl"
+                  onClick={() => setShowTutor(false)}
+                  aria-label="Close AI Tutor"
+                >
+                  ×
+                </button>
+                {/* Chat messages and input area (reuse Tutor chat logic/styles) */}
+                {/* ...chat logic here... */}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
       {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link to="/" className="flex items-center space-x-2">

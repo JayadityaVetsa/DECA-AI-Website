@@ -13,6 +13,7 @@ import Auth from "./pages/Auth";
 import TestReview from "./pages/TestReview";
 import Forum from "./pages/Forum";
 import ForumDetail from "./pages/ForumDetail";
+import Settings from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/review/:testId" element={<TestReview />} />
           <Route path="/forum" element={<Forum />} />
           <Route path="/forum/:questionId" element={<ForumDetail />} />
+          <Route path="/profile" element={<Settings />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

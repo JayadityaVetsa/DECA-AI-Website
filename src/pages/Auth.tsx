@@ -53,9 +53,9 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
       {/* Navigation Bar */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
@@ -77,14 +77,14 @@ const Auth: React.FC = () => {
       </nav>
       {/* Auth Card */}
       <div className="flex items-center justify-center min-h-[80vh] px-4">
-        <Card className="w-full max-w-md shadow-xl border-0">
+        <Card className="w-full max-w-md shadow-xl border-0 bg-white dark:bg-gray-900">
           <CardHeader className="text-center pb-2">
             <CardTitle>
               <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 bg-clip-text text-transparent">
                 {isSignup ? "Create Your Account" : "Welcome Back"}
               </span>
             </CardTitle>
-            <CardDescription className="text-gray-600 mt-2">
+            <CardDescription className="text-gray-600 dark:text-gray-300 mt-2">
               {isSignup
                 ? "Sign up to unlock unlimited DECA practice, AI tutoring, and more."
                 : "Log in to continue your DECA journey with AI-powered tools."}

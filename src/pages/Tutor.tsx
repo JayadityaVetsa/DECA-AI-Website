@@ -22,6 +22,10 @@ import { askGemini } from "../lib/gemini";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";
 import { findRelevantExplanations, getExplanationStats } from "../lib/tutorKnowledge";
+import Avatar from "react-avatar";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   id: number;
@@ -106,6 +110,8 @@ const Tutor = () => {
   const [explanationStats, setExplanationStats] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUserPic, setCurrentUserPic] = useState<string>("");
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -118,6 +124,22 @@ const Tutor = () => {
   useEffect(() => {
     // Load explanation statistics
     getExplanationStats().then(setExplanationStats);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        setCurrentUser(firebaseUser);
+        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (userDoc.exists()) {
+          setCurrentUserPic(userDoc.data().profilePicUrl || "");
+        }
+      } else {
+        setCurrentUser(null);
+        setCurrentUserPic("");
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   // Update PI when event changes
@@ -201,9 +223,9 @@ const Tutor = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
       {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link to="/" className="flex items-center space-x-2">
@@ -212,239 +234,136 @@ const Tutor = () => {
                 DECA AI Platform
               </span>
             </Link>
-            <div className="flex items-center space-x-2 sm:space-x-4">
+            <div className="flex items-center space-x-4">
               <Link to="/dashboard">
-                <Button variant="ghost" size="sm" className="hidden sm:flex">
-                  <Home className="h-4 w-4 mr-2" />
-                  Dashboard
-                </Button>
+                <Button variant="ghost">Dashboard</Button>
               </Link>
               <Link to="/test">
-                <Button variant="ghost" size="sm" className="hidden sm:flex">
-                  <BookOpen className="h-4 w-4 mr-2" />
-                  Practice Test
-                </Button>
+                <Button variant="ghost">Practice Test</Button>
               </Link>
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
-                <LogOut className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Sign Out</span>
-              </Button>
+              <Link to="/full-test">
+                <Button variant="ghost">Full Test</Button>
+              </Link>
+              <Link to="/tutor">
+                <Button variant="ghost">AI Tutor</Button>
+              </Link>
+              <Link to="/forum">
+                <Button variant="ghost">Forum</Button>
+              </Link>
+              {/* Profile Avatar */}
+              <Link to="/profile">
+                {currentUserPic ? (
+                  <img
+                    src={currentUserPic}
+                    alt="Profile"
+                    className="w-9 h-9 rounded-full object-cover border-2 border-blue-300 shadow"
+                  />
+                ) : currentUser ? (
+                  <Avatar name={currentUser.displayName || currentUser.email || "User"} size="36" round={true} />
+                ) : null}
+              </Link>
             </div>
           </div>
         </div>
       </nav>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
-          {/* Sidebar with Quick Topics */}
-          <div className="lg:col-span-1 space-y-6">
-            <Card className="border-0 shadow-lg">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Lightbulb className="h-5 w-5 text-yellow-600" />
-                  Quick Topics
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {quickTopics.map((topic, index) => (
-                  <Button
-                    key={index}
-                    variant="ghost"
-                    className="w-full justify-start h-auto p-3 text-left hover:bg-blue-50 transition-colors"
-                    onClick={() => handleQuickTopic(topic.title)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">{topic.emoji}</span>
-                      <div>
-                        <div className="font-medium text-sm">{topic.title}</div>
-                        <Badge variant="outline" className="text-xs mt-1">
-                          {topic.category}
-                        </Badge>
-                      </div>
-                    </div>
-                  </Button>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Knowledge Base Stats */}
-            {explanationStats && (
-              <Card className="border-0 shadow-lg">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <BookOpen className="h-5 w-5 text-green-600" />
-                    Knowledge Base
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span>DECA Explanations:</span>
-                    <Badge variant="outline">{explanationStats.totalExplanations}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Source PDFs:</span>
-                    <Badge variant="outline">{explanationStats.sources.length}</Badge>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Enhanced with official DECA materials
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <Card className="border-0 shadow-lg">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
-                  Study Tips
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="flex items-start space-x-2">
-                  <TrendingUp className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Ask about specific DECA Performance Indicators</span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <MessageCircle className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
-                  <span>Request practice scenarios and explanations</span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <BookOpen className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
-                  <span>I'm trained on real DECA materials for accuracy</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main Chat Area */}
-          <div className="lg:col-span-3 flex flex-col h-[75vh] lg:h-[80vh] min-h-[600px]">
-            <Card className="border-0 shadow-xl flex flex-col h-full">
-              <CardHeader className="border-b pb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Bot className="h-6 w-6 text-blue-600" />
-                    Enhanced AI DECA Tutor
-                    <Badge className="ml-2 bg-green-100 text-green-800 hover:bg-green-100">
-                      Real DECA Knowledge
-                    </Badge>
-                  </CardTitle>
-                </div>
-                
-                {/* Focus Area integrated into header */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Event Focus</label>
-                    <select
-                      className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                      value={selectedEvent}
-                      onChange={e => setSelectedEvent(e.target.value)}
-                      disabled={isTyping}
-                    >
-                      {EVENTS.map(ev => (
-                        <option key={ev.name} value={ev.name}>{ev.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Performance Indicator</label>
-                    <select
-                      className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                      value={selectedPI}
-                      onChange={e => setSelectedPI(e.target.value)}
-                      disabled={isTyping}
-                    >
-                      {EVENTS.find(ev => ev.name === selectedEvent)?.pis.map(pi => (
-                        <option key={pi} value={pi}>{pi}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </CardHeader>
-
-              {/* Messages Area */}
-              <CardContent className="flex-1 p-0 bg-gradient-to-b from-white via-blue-50 to-purple-50 flex flex-col">
-                <ScrollArea className="flex-1 px-4 py-4 pr-4 max-h-[60vh] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-                  <div className="space-y-4">
-                    {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex items-start space-x-3 ${
-                          message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
-                        }`}
-                      >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          message.sender === 'user' 
-                            ? 'bg-blue-600 text-white' 
-                            : 'bg-purple-100 text-purple-600'
-                        }`}>
-                          {message.sender === 'user' ? 
-                            <User className="h-4 w-4" /> : 
-                            <Bot className="h-4 w-4" />
-                          }
-                        </div>
-                        <div className={`max-w-[85%] ${
-                          message.sender === 'user' ? 'text-right' : 'text-left'
-                        }`}>
-                          <div className={`inline-block p-3 rounded-lg shadow-sm ${
-                            message.sender === 'user'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white text-gray-900 border border-gray-200'
-                          }`}>
-                            <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.content}</div>
-                          </div>
-                          <div className="text-xs text-gray-400 mt-1 text-right">
-                            {message.timestamp.toLocaleTimeString([], { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {isTyping && (
-                      <div className="flex items-start space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
-                          <Bot className="h-4 w-4" />
-                        </div>
-                        <div className="bg-gray-100 text-gray-900 p-3 rounded-lg">
-                          <div className="flex space-x-1">
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <div ref={messagesEndRef} />
-                  </div>
-                </ScrollArea>
-              </CardContent>
-
-              {/* Input Area */}
-              <div className="border-t p-4 bg-white sticky bottom-0 z-10">
-                <div className="flex space-x-2">
-                  <Input
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Ask me about DECA topics, Performance Indicators, or request practice explanations..."
-                    className="flex-1 text-sm"
-                    disabled={isTyping}
-                  />
-                  <Button 
-                    onClick={handleSendMessage}
-                    disabled={!inputMessage.trim() || isTyping}
-                    size="icon"
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="text-xs text-gray-500 mt-2 text-center">
-                  💡 Enhanced with {explanationStats?.totalExplanations || 0} real DECA explanations for accurate answers
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {/* Sidebar with Quick Topics */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 space-y-6 lg:col-span-1">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Lightbulb className="h-5 w-5 text-yellow-500" /> Quick Topics</h2>
+          <div className="space-y-4">
+            {quickTopics.map((topic, idx) => (
+              <div key={idx} className="flex items-center gap-3">
+                <span className="text-2xl">{topic.emoji}</span>
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">{topic.title}</div>
+                  <span className="text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">{topic.category}</span>
                 </div>
               </div>
-            </Card>
+            ))}
+          </div>
+        </div>
+        {/* Main Chat Area */}
+        <div className="lg:col-span-3 flex flex-col gap-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col h-[75vh] min-h-[600px]">
+            <div className="flex items-center gap-3 mb-6">
+              <Bot className="h-6 w-6 text-blue-600" />
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Enhanced AI DECA Tutor</h1>
+              <span className="ml-2 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200">Real DECA Knowledge</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Event Focus</label>
+                <input className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" value={selectedEvent} readOnly />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Performance Indicator</label>
+                <input className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" value={selectedPI} readOnly />
+              </div>
+            </div>
+            {/* Chat Messages Area */}
+            <ScrollArea className="flex-1 px-2 py-2 max-h-[40vh] overflow-y-auto bg-gradient-to-b from-white via-blue-50 to-purple-50 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 rounded-lg mb-4" style={{ scrollbarWidth: 'thin' }}>
+              <div className="space-y-4">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex items-start space-x-3 ${message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${message.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-200'}`}>
+                      {message.sender === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                    </div>
+                    <div className={`max-w-[85%] ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
+                      <div className={`inline-block p-3 rounded-lg shadow-sm ${message.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white text-gray-900 border border-gray-200 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700'}`}>
+                        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                          <ReactMarkdown>{message.content}</ReactMarkdown>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1 text-right">
+                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {isTyping && (
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-200 flex items-center justify-center flex-shrink-0">
+                      <Bot className="h-4 w-4" />
+                    </div>
+                    <div className="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-3 rounded-lg">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+            {/* Input Area */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 bg-white dark:bg-gray-800 sticky bottom-0 z-10">
+              <div className="flex space-x-2">
+                <Input
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask me about DECA topics, Performance Indicators, or request practice explanations..."
+                  className="flex-1 text-sm bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"
+                  disabled={isTyping}
+                />
+                <Button 
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim() || isTyping}
+                  size="icon"
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                💡 Enhanced with {explanationStats?.totalExplanations || 0} real DECA explanations for accurate answers
+              </div>
+            </div>
           </div>
         </div>
       </div>

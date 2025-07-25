@@ -1,20 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../lib/firebase";
-import { collection, addDoc, getDocs, serverTimestamp, query, orderBy } from "firebase/firestore";
+import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, doc, getDoc } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Brain, BookOpen, Home, MessageCircle, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
+import Avatar from "react-avatar";
 
 const Forum = () => {
-  const [questions, setQuestions] = useState<any[]>([]);
+  const [questions, setQuestions] = useState<Array<{ id: string; userId?: string; userName?: string; title?: string; body?: string; createdAt?: any }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [posting, setPosting] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [userPics, setUserPics] = useState<Record<string, string>>({});
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUserPic, setCurrentUserPic] = useState<string>("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,13 +27,40 @@ const Forum = () => {
       setError("");
       try {
         const qSnap = await getDocs(query(collection(db, "forumQuestions"), orderBy("createdAt", "desc")));
-        setQuestions(qSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const questions = qSnap.docs.map(doc => ({ id: doc.id, ...(doc.data() as { userId?: string; userName?: string; title?: string; body?: string; createdAt?: any }) }));
+        setQuestions(questions);
+        // Fetch profilePicUrls for all unique userIds
+        const userIds = Array.from(new Set(questions.map(q => q.userId).filter(Boolean)));
+        const pics: Record<string, string> = {};
+        await Promise.all(userIds.map(async (uid) => {
+          const userDoc = await getDoc(doc(db, "users", uid));
+          if (userDoc.exists() && userDoc.data().profilePicUrl) {
+            pics[uid] = userDoc.data().profilePicUrl;
+          }
+        }));
+        setUserPics(pics);
       } catch (err) {
         setError("Failed to load forum questions.");
       }
       setLoading(false);
     };
     fetchQuestions();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        setCurrentUser(firebaseUser);
+        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (userDoc.exists()) {
+          setCurrentUserPic(userDoc.data().profilePicUrl || "");
+        }
+      } else {
+        setCurrentUser(null);
+        setCurrentUserPic("");
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   const handlePost = async (e: any) => {
@@ -63,9 +94,9 @@ const Forum = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
       {/* Top Navigation Bar */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link to="/" className="flex items-center space-x-2">
@@ -86,6 +117,18 @@ const Forum = () => {
               </Link>
               <Link to="/forum">
                 <Button variant="ghost">Forum</Button>
+              </Link>
+              {/* Profile Avatar */}
+              <Link to="/profile">
+                {currentUserPic ? (
+                  <img
+                    src={currentUserPic}
+                    alt="Profile"
+                    className="w-9 h-9 rounded-full object-cover border-2 border-blue-300 shadow"
+                  />
+                ) : currentUser ? (
+                  <Avatar name={currentUser.displayName || currentUser.email || "User"} size="36" round={true} />
+                ) : null}
               </Link>
             </div>
           </div>
@@ -146,9 +189,17 @@ const Forum = () => {
                   onClick={() => navigate(`/forum/${q.id}`)}
                 >
                   <CardHeader>
-                    <CardTitle className="text-lg font-bold">{q.title}</CardTitle>
-                    <CardDescription className="text-gray-600">
-                      by {q.userName} {q.createdAt && q.createdAt.toDate ? (
+                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                      {q.userId && userPics[q.userId] ? (
+                        <img src={userPics[q.userId]} alt="Profile" className="w-7 h-7 rounded-full object-cover border border-blue-200 shadow" />
+                      ) : q.userName ? (
+                        <Avatar name={q.userName} size="28" round={true} />
+                      ) : null}
+                      {q.title}
+                    </CardTitle>
+                    <CardDescription className="text-gray-600 flex items-center gap-2">
+                      by {q.userName}
+                      {q.createdAt && q.createdAt.toDate ? (
                         <span className="text-xs text-gray-400 ml-2">
                           {q.createdAt.toDate().toLocaleString()}
                         </span>

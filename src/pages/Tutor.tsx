@@ -267,45 +267,45 @@ const Tutor = () => {
         </div>
       </nav>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Sidebar with Quick Topics */}
+          {/* Sidebar with Quick Topics */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 space-y-6 lg:col-span-1">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Lightbulb className="h-5 w-5 text-yellow-500" /> Quick Topics</h2>
           <div className="space-y-4">
             {quickTopics.map((topic, idx) => (
               <div key={idx} className="flex items-center gap-3">
                 <span className="text-2xl">{topic.emoji}</span>
-                <div>
+                      <div>
                   <div className="font-medium text-gray-900 dark:text-white">{topic.title}</div>
                   <span className="text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">{topic.category}</span>
                 </div>
-              </div>
+                </div>
             ))}
           </div>
         </div>
-        {/* Main Chat Area */}
+          {/* Main Chat Area */}
         <div className="lg:col-span-3 flex flex-col gap-6">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col h-[75vh] min-h-[600px]">
             <div className="flex items-center gap-3 mb-6">
-              <Bot className="h-6 w-6 text-blue-600" />
+                    <Bot className="h-6 w-6 text-blue-600" />
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Enhanced AI DECA Tutor</h1>
               <span className="ml-2 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200">Real DECA Knowledge</span>
-            </div>
+                </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
+                  <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Event Focus</label>
                 <input className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" value={selectedEvent} readOnly />
-              </div>
-              <div>
+                  </div>
+                  <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Performance Indicator</label>
                 <input className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" value={selectedPI} readOnly />
-              </div>
-            </div>
+                  </div>
+                </div>
             {/* Chat Messages Area */}
             <ScrollArea className="flex-1 px-2 py-2 max-h-[40vh] overflow-y-auto bg-gradient-to-b from-white via-blue-50 to-purple-50 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 rounded-lg mb-4" style={{ scrollbarWidth: 'thin' }}>
-              <div className="space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
+                  <div className="space-y-4">
+                    {messages.map((message) => (
+                      <div
+                        key={message.id}
                     className={`flex items-start space-x-3 ${message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}
                   >
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${message.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-200'}`}>
@@ -316,54 +316,54 @@ const Tutor = () => {
                         <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                           <ReactMarkdown>{message.content}</ReactMarkdown>
                         </div>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1 text-right">
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1 text-right">
                         {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
-                {isTyping && (
-                  <div className="flex items-start space-x-3">
+                    ))}
+                    {isTyping && (
+                      <div className="flex items-start space-x-3">
                     <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-200 flex items-center justify-center flex-shrink-0">
-                      <Bot className="h-4 w-4" />
-                    </div>
+                          <Bot className="h-4 w-4" />
+                        </div>
                     <div className="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-3 rounded-lg">
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          <div className="flex space-x-1">
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    <div ref={messagesEndRef} />
                   </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
-            {/* Input Area */}
+                </ScrollArea>
+              {/* Input Area */}
             <div className="border-t border-gray-200 dark:border-gray-700 pt-4 bg-white dark:bg-gray-800 sticky bottom-0 z-10">
-              <div className="flex space-x-2">
-                <Input
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask me about DECA topics, Performance Indicators, or request practice explanations..."
+                <div className="flex space-x-2">
+                  <Input
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Ask me about DECA topics, Performance Indicators, or request practice explanations..."
                   className="flex-1 text-sm bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"
-                  disabled={isTyping}
-                />
-                <Button 
-                  onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || isTyping}
-                  size="icon"
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
+                    disabled={isTyping}
+                  />
+                  <Button 
+                    onClick={handleSendMessage}
+                    disabled={!inputMessage.trim() || isTyping}
+                    size="icon"
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-                💡 Enhanced with {explanationStats?.totalExplanations || 0} real DECA explanations for accurate answers
+                  💡 Enhanced with {explanationStats?.totalExplanations || 0} real DECA explanations for accurate answers
+                </div>
               </div>
-            </div>
           </div>
         </div>
       </div>

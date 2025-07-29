@@ -1,31 +1,36 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { auth, db } from "../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle, Brain } from "lucide-react";
+import Avatar from "react-avatar";
 
 const TestReview = () => {
   const { testId } = useParams();
   const [test, setTest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [user, setUser] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchTest = async () => {
+    const fetchTest = async (firebaseUser: any) => {
       setLoading(true);
       setError("");
       try {
-        const user = auth.currentUser;
-        if (!user) {
-          setError("You must be logged in to view this test review.");
-          setLoading(false);
-          return;
+        // Fetch user data
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          setUserData(userDocSnap.data());
         }
-        const testRef = doc(db, "users", user.uid, "testResults", testId!);
+
+        // Fetch test data
+        const testRef = doc(db, "users", firebaseUser.uid, "testResults", testId!);
         const testSnap = await getDoc(testRef);
         if (testSnap.exists()) {
           setTest(testSnap.data());
@@ -37,8 +42,22 @@ const TestReview = () => {
       }
       setLoading(false);
     };
-    fetchTest();
-  }, [testId]);
+
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        await fetchTest(firebaseUser);
+      } else {
+        setUser(null);
+        setUserData(null);
+        setError("You must be logged in to view this test review.");
+        setLoading(false);
+        navigate("/auth");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [testId, navigate]);
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-xl">Loading test review...</div>;
@@ -71,9 +90,55 @@ const TestReview = () => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
+  const handleSignOut = async () => {
+    await auth.signOut();
+    navigate("/auth");
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 py-8 transition-colors">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
+      {/* Navigation */}
+      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <Link to="/" className="flex items-center space-x-2">
+              <Brain className="h-8 w-8 text-blue-600" />
+              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                DECA AI Platform
+              </span>
+            </Link>
+            <div className="flex items-center space-x-4">
+              <Link to="/test">
+                <Button variant="ghost">Practice Test</Button>
+              </Link>
+              <Link to="/full-test">
+                <Button variant="ghost">Full Test</Button>
+              </Link>
+              <Link to="/tutor">
+                <Button variant="ghost">AI Tutor</Button>
+              </Link>
+              <Link to="/forum">
+                <Button variant="ghost">Forum</Button>
+              </Link>
+              {/* Profile Avatar */}
+              <Link to="/profile">
+                {userData?.profilePicUrl ? (
+                  <img
+                    src={userData.profilePicUrl}
+                    alt="Profile"
+                    className="w-9 h-9 rounded-full object-cover border-2 border-blue-300 shadow"
+                  />
+                ) : user ? (
+                  <Avatar name={user.displayName || user.email || "User"} size="36" round={true} />
+                ) : null}
+              </Link>
+              <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div className="max-w-4xl mx-auto px-4 py-8">
         <Button variant="outline" className="mb-6" onClick={() => navigate(-1)}>
           ← Back
         </Button>

@@ -17,12 +17,14 @@ import {
   AlertTriangle,
   Bot
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "../lib/firebase";
 import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import Avatar from "react-avatar";
+import { integrateWithExistingAI, saveQuestionToGlobalStorage } from "../lib/questionService";
 
 const FullTest = () => {
+  const navigate = useNavigate();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [answers, setAnswers] = useState<string[]>([]);
@@ -221,6 +223,40 @@ const FullTest = () => {
     setTestStarted(false);
   };
 
+  // Function to save hardcoded questions to global storage
+  const saveHardcodedQuestionsToGlobalStorage = async () => {
+    console.log("Saving hardcoded questions to global storage...");
+    for (const question of questions) {
+      try {
+        // Convert to DECAQuestion format for storage
+        const decaQuestion = {
+          id: `fulltest_${question.id}`,
+          cluster: question.category,
+          question_text: question.question,
+          options: {
+            A: question.options[0],
+            B: question.options[1],
+            C: question.options[2],
+            D: question.options[3]
+          },
+          correct_answer: ['A', 'B', 'C', 'D'][question.correct],
+          explanation: question.explanation,
+          difficulty_level: question.difficulty.toLowerCase()
+        };
+        await saveQuestionToGlobalStorage(decaQuestion, question.category);
+        console.log("Saved full test question to global storage:", question.question.substring(0, 50) + '...');
+      } catch (error) {
+        console.error("Error saving full test question to global storage:", error);
+      }
+    }
+    console.log("✅ All full test questions saved to global storage");
+  };
+
+  const handleSignOut = async () => {
+    await auth.signOut();
+    navigate("/auth");
+  };
+
   if (!testStarted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900 transition-colors">
@@ -302,7 +338,10 @@ const FullTest = () => {
                 <Button 
                   size="lg" 
                   className="px-12 py-6 text-lg bg-red-600 hover:bg-red-700"
-                  onClick={() => setTestStarted(true)}
+                  onClick={async () => {
+                    await saveHardcodedQuestionsToGlobalStorage();
+                    setTestStarted(true);
+                  }}
                 >
                   Start Full Test
                 </Button>
@@ -330,8 +369,49 @@ const FullTest = () => {
     const timeTaken = 1800 - timeLeft;
 
     return (
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors py-8">
-        <div className="max-w-4xl mx-auto px-4">
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
+        {/* Navigation */}
+        <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <Link to="/" className="flex items-center space-x-2">
+                <Brain className="h-8 w-8 text-blue-600" />
+                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  DECA AI Platform
+                </span>
+              </Link>
+              <div className="flex items-center space-x-4">
+                <Link to="/test">
+                  <Button variant="ghost">Practice Test</Button>
+                </Link>
+                <Link to="/full-test">
+                  <Button variant="ghost">Full Test</Button>
+                </Link>
+                <Link to="/tutor">
+                  <Button variant="ghost">AI Tutor</Button>
+                </Link>
+                <Link to="/forum">
+                  <Button variant="ghost">Forum</Button>
+                </Link>
+                {/* Profile Avatar */}
+                <Link to="/profile">
+                  {currentUserPic ? (
+                    <img
+                      src={currentUserPic}
+                      alt="Profile"
+                      className="w-9 h-9 rounded-full object-cover border-2 border-blue-300 shadow"
+                    />
+                  ) : currentUser ? (
+                    <Avatar name={currentUser.displayName || currentUser.email || "User"} size="36" round={true} />
+                  ) : null}
+                </Link>
+                <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        <div className="max-w-4xl mx-auto px-4 py-8">
           {/* Score Summary */}
           <div className="flex flex-col md:flex-row justify-center gap-6 mb-10">
             <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col items-center">

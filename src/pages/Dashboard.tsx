@@ -35,12 +35,12 @@ const Dashboard = () => {
     const fetchDashboardData = async (firebaseUser: any) => {
       setLoading(true);
       setError("");
-      try {
-        const docRef = doc(db, "users", firebaseUser.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setUserData(docSnap.data());
-        } else {
+        try {
+          const docRef = doc(db, "users", firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setUserData(docSnap.data());
+          } else {
           setUserData(null);
         }
         // Fetch recent test results
@@ -82,8 +82,8 @@ const Dashboard = () => {
         setRecentTests(tests);
       } catch (err: any) {
         setUserData(null);
-      }
-      setLoading(false);
+        }
+        setLoading(false);
     };
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -209,38 +209,38 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left: Quick Actions & Recent Results */}
           <div className="lg:col-span-2 space-y-8">
-            {/* Quick Actions */}
+          {/* Quick Actions */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 mb-4">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
                 <Brain className="h-5 w-5 text-blue-600" /> Quick Actions
               </h2>
               <p className="text-gray-600 dark:text-gray-300 mb-6">Choose your learning mode and jump in</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <Link to="/test">
+                  <Link to="/test">
                   <Button className="w-full h-24 flex flex-col gap-2 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl shadow-md dark:bg-blue-700 dark:hover:bg-blue-800 transition-colors">
-                    <BookOpen className="h-6 w-6" />
+                      <BookOpen className="h-6 w-6" />
                     Practice Test
                     <span className="text-xs opacity-90 font-normal">With AI Tutor Help</span>
-                  </Button>
-                </Link>
-                <Link to="/full-test">
+                    </Button>
+                  </Link>
+                  <Link to="/full-test">
                   <Button className="w-full h-24 flex flex-col gap-2 bg-red-600 hover:bg-red-700 text-white text-lg font-semibold rounded-xl shadow-md dark:bg-red-700 dark:hover:bg-red-800 transition-colors">
-                    <AlertTriangle className="h-6 w-6" />
+                      <AlertTriangle className="h-6 w-6" />
                     Full Test
                     <span className="text-xs opacity-90 font-normal">No AI Assistance</span>
-                  </Button>
-                </Link>
+                    </Button>
+                  </Link>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Button className="w-full h-16 flex flex-col gap-2 bg-gray-200 hover:bg-gray-300 text-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 font-semibold rounded-xl shadow-md transition-colors">
-                  <MessageCircle className="h-6 w-6" />
-                  Chat with AI Tutor
-                </Button>
+                      <MessageCircle className="h-6 w-6" />
+                      Chat with AI Tutor
+                    </Button>
                 <Button className="w-full h-16 flex flex-col gap-2 bg-gray-200 hover:bg-gray-300 text-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 font-semibold rounded-xl shadow-md transition-colors">
-                  <BarChart3 className="h-6 w-6" />
-                  View Analytics
-                </Button>
-              </div>
+                    <BarChart3 className="h-6 w-6" />
+                    View Analytics
+                  </Button>
+                </div>
             </div>
 
             {/* Recent Test Results */}
@@ -297,7 +297,7 @@ const Dashboard = () => {
                   );
                 })
               )}
-            </div>
+                </div>
           </div>
 
           {/* Right: Areas for Improvement & Achievements */}
@@ -311,7 +311,7 @@ const Dashboard = () => {
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-gray-900 dark:text-white font-medium">{area.topic}</span>
                     <span className="text-green-500 font-semibold">{area.improvement}</span>
-                  </div>
+                    </div>
                   <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-1">
                     <div
                       className="h-2 rounded-full bg-blue-500 dark:bg-blue-400"
@@ -319,8 +319,8 @@ const Dashboard = () => {
                     ></div>
                   </div>
                   <span className="text-xs text-gray-600 dark:text-gray-300">{area.accuracy}% accuracy</span>
-                </div>
-              ))}
+                  </div>
+                ))}
             </div>
 
             {/* Achievements */}

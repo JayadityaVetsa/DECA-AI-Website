@@ -38,26 +38,7 @@ const Index = () => {
     }
   ];
 
-  const testimonials = [
-    {
-      name: "Sarah Chen",
-      role: "DECA State Champion 2024",
-      content: "This platform helped me practice unlimited scenarios and improved my test scores by 40%!",
-      rating: 5
-    },
-    {
-      name: "Marcus Johnson",
-      role: "DECA Regional Winner",
-      content: "The AI tutor explains concepts in ways I never thought of. Game-changer for competition prep!",
-      rating: 5
-    },
-    {
-      name: "Emma Rodriguez",
-      role: "DECA Chapter President",
-      content: "Our entire team uses this platform. The progress tracking helps us focus on what matters most.",
-      rating: 5
-    }
-  ];
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900 transition-colors">
@@ -175,38 +156,7 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 to-purple-600 dark:from-gray-800 dark:to-gray-900">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4 text-gray-900">
-              Trusted by DECA Champions
-            </h2>
-            <p className="text-xl text-gray-600">
-              See how students are achieving breakthrough results with our platform
-            </p>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <Card key={index} className="border-0 shadow-lg">
-                <CardContent className="pt-6">
-                  <div className="flex items-center mb-4">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
-                    ))}
-                  </div>
-                  <p className="text-gray-600 mb-4 italic">"{testimonial.content}"</p>
-                  <div>
-                    <p className="font-semibold text-gray-900">{testimonial.name}</p>
-                    <p className="text-sm text-gray-500">{testimonial.role}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* CTA Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 to-purple-600 dark:from-gray-800 dark:to-gray-900">

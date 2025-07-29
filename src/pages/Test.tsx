@@ -38,6 +38,7 @@ import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/fires
 import { signOut } from "firebase/auth";
 import Avatar from "react-avatar";
 import ReactMarkdown from "react-markdown";
+import { integrateWithExistingAI, saveQuestionToGlobalStorage } from "../lib/questionService";
 
 interface TutorMessage {
   id: number;
@@ -246,8 +247,8 @@ const Test = () => {
     answers.forEach((answer, index) => {
       if (answer !== undefined && answer !== "") {
         answered++;
-        if (parseInt(answer) === questions[index].correct) {
-          correct++;
+      if (parseInt(answer) === questions[index].correct) {
+        correct++;
         }
       }
     });
@@ -396,6 +397,18 @@ Student's question: ${userMessage.content}`;
         throw new Error('No questions generated');
       }
 
+      // Save all generated questions to global storage
+      console.log('Saving questions to global storage...');
+      for (const question of generatedTest.questions) {
+        try {
+          await saveQuestionToGlobalStorage(question, event || cluster);
+          console.log('Saved question to global storage:', question.question_text.substring(0, 50) + '...');
+        } catch (error) {
+          console.error('Error saving question to global storage:', error);
+        }
+      }
+      console.log('✅ All questions saved to global storage');
+
       setQuestions(convertedQuestions);
       setTimeLeft(customTimeLimit * 60);
       setTestStarted(true);
@@ -443,6 +456,33 @@ Student's question: ${userMessage.content}`;
         
         fallbackQuestions.push(questionVariation);
       }
+      
+      // Save fallback questions to global storage
+      console.log('Saving fallback questions to global storage...');
+      for (const question of fallbackQuestions) {
+        try {
+          // Convert to DECAQuestion format for storage
+          const decaQuestion = {
+            id: `fallback_${question.id}`,
+            cluster: question.category,
+            question_text: question.question,
+            options: {
+              A: question.options[0],
+              B: question.options[1],
+              C: question.options[2],
+              D: question.options[3]
+            },
+            correct_answer: ['A', 'B', 'C', 'D'][question.correct],
+            explanation: question.explanation,
+            difficulty_level: question.difficulty.toLowerCase()
+          };
+          await saveQuestionToGlobalStorage(decaQuestion, event || cluster);
+          console.log('Saved fallback question to global storage:', question.question.substring(0, 50) + '...');
+        } catch (error) {
+          console.error('Error saving fallback question to global storage:', error);
+        }
+      }
+      console.log('✅ All fallback questions saved to global storage');
       
       setQuestions(fallbackQuestions);
       setTimeLeft(customTimeLimit * 60);
@@ -569,7 +609,7 @@ Student's question: ${userMessage.content}`;
               <div className="mb-8">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Difficulty Distribution</label>
                 <div className="flex flex-col gap-4">
-                  <div>
+              <div>
                     <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Easy: {difficultyDistribution.easy}%</label>
                     <input
                       type="range"
@@ -626,14 +666,14 @@ Student's question: ${userMessage.content}`;
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
                   <span className="font-semibold">System Status</span>
-                </div>
+                  </div>
                 <ul className="text-sm space-y-1">
                   <li><span className="font-bold">⚡ Batch Generation:</span> Generates all {customQuestionCount} questions in 1 API call</li>
                   <li><span className="font-bold">📚 Local Bank:</span> {customQuestionCount > 15 ? '15+' : customQuestionCount} high-quality backup questions available</li>
                   <li><span className="font-bold">🤖 Smart Fallback:</span> Seamless transition when API limits reached</li>
                 </ul>
                 <div className="text-xs text-right text-gray-500 dark:text-gray-400 mt-2">Gemini API Free Tier: 50 requests/day</div>
-              </div>
+                </div>
               <div className="text-center mt-8">
                 <Button 
                   onClick={handleStartTest} 
@@ -668,13 +708,50 @@ Student's question: ${userMessage.content}`;
     const incorrect = questions.length - correctAnswers;
     const timeTaken = (customTimeLimit * 60) - timeLeft;
 
-    // Find the last question and user's answer for immediate results
-    const lastQuestion = questions[questions.length - 1];
-    const lastUserAnswer = parseInt(answers[answers.length - 1]);
-    const isLastCorrect = lastUserAnswer === lastQuestion.correct;
     return (
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors py-8">
-        <div className="max-w-4xl mx-auto px-4">
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
+        {/* Navigation */}
+        <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <Link to="/" className="flex items-center space-x-2">
+                <Brain className="h-8 w-8 text-blue-600" />
+                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  DECA AI Platform
+                </span>
+              </Link>
+              <div className="flex items-center space-x-4">
+                <Link to="/test">
+                  <Button variant="ghost">Practice Test</Button>
+                </Link>
+                <Link to="/full-test">
+                  <Button variant="ghost">Full Test</Button>
+                </Link>
+                <Link to="/tutor">
+                  <Button variant="ghost">AI Tutor</Button>
+                </Link>
+                <Link to="/forum">
+                  <Button variant="ghost">Forum</Button>
+                </Link>
+                {/* Profile Avatar */}
+                <Link to="/profile">
+                  {currentUserPic ? (
+                    <img
+                      src={currentUserPic}
+                      alt="Profile"
+                      className="w-9 h-9 rounded-full object-cover border-2 border-blue-300 shadow"
+                    />
+                  ) : currentUser ? (
+                    <Avatar name={currentUser.displayName || currentUser.email || "User"} size="36" round={true} />
+                  ) : null}
+                </Link>
+                <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        <div className="max-w-4xl mx-auto px-4 py-8">
           {/* Score Summary */}
           <div className="flex flex-col md:flex-row justify-center gap-6 mb-10">
             <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex flex-col items-center">
@@ -695,56 +772,87 @@ Student's question: ${userMessage.content}`;
             </div>
           </div>
 
-          {/* Immediate Results for Last Question */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 mt-10">
-            <div className="flex items-center gap-3 mb-2">
-              <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{lastQuestion.category}</Badge>
-              <Badge variant={lastQuestion.difficulty === 'Beginner' ? 'secondary' : lastQuestion.difficulty === 'Intermediate' ? 'default' : 'destructive'} className={lastQuestion.difficulty === 'Beginner' ? '' : lastQuestion.difficulty === 'Intermediate' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}>{lastQuestion.difficulty}</Badge>
-              {isLastCorrect ? (
-                <span className="text-green-600 dark:text-green-300 font-bold">✔</span>
-              ) : (
-                <span className="text-red-600 dark:text-red-300 font-bold">✘</span>
-              )}
-              <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">Question {questions.length}</span>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{lastQuestion.question}</h3>
-            <div className="space-y-3 mb-4">
-              {lastQuestion.options.map((option: string, optionIndex: number) => {
-                const isUserAnswer = lastUserAnswer === optionIndex;
-                const isCorrectAnswer = lastQuestion.correct === optionIndex;
-                let optionBg = 'bg-gray-100 dark:bg-gray-700';
-                let optionText = 'text-gray-900 dark:text-gray-100';
-                let optionFont = '';
-                if (isCorrectAnswer) {
-                  optionBg = 'bg-green-100 dark:bg-green-900/40';
-                  optionText = 'text-green-700 dark:text-green-200';
-                  optionFont = 'font-bold';
-                } else if (isUserAnswer && !isCorrectAnswer) {
-                  optionBg = 'bg-red-100 dark:bg-red-900/40';
-                  optionText = 'text-red-700 dark:text-red-200';
-                  optionFont = 'font-bold';
-                } else if (isUserAnswer) {
-                  optionBg = 'bg-blue-100 dark:bg-blue-800/40';
-                  optionText = 'text-blue-700 dark:text-blue-200';
-                  optionFont = 'font-bold';
-                }
-                return (
-                  <div
-                    key={optionIndex}
-                    className={`p-4 rounded-xl border ${optionBg} border-gray-200 dark:border-gray-600 flex items-center gap-2 ${optionText} ${optionFont}`}
-                  >
-                    <span className="font-bold mr-2">{String.fromCharCode(65 + optionIndex)}.</span>
-                    <span>{option}</span>
-                    {isCorrectAnswer && <span className="ml-auto">✔</span>}
-                    {isUserAnswer && !isCorrectAnswer && <span className="ml-auto">✘</span>}
+          {/* Question Review - All Questions */}
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Question Review</h2>
+          <div className="space-y-8">
+            {questions.map((question, idx) => {
+              const userAnswer = parseInt(answers[idx]);
+              const isCorrect = userAnswer === question.correct;
+              return (
+                <div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{question.category}</Badge>
+                    <Badge variant={question.difficulty === 'Beginner' ? 'secondary' : question.difficulty === 'Intermediate' ? 'default' : 'destructive'} className={question.difficulty === 'Beginner' ? '' : question.difficulty === 'Intermediate' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}>{question.difficulty}</Badge>
+                    {isCorrect ? (
+                      <span className="text-green-600 dark:text-green-300 font-bold">✔</span>
+                    ) : (
+                      <span className="text-red-600 dark:text-red-300 font-bold">✘</span>
+                    )}
+                    <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">Question {idx + 1}</span>
                   </div>
-                );
-              })}
-            </div>
-            <div className="bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg p-6 mt-2">
-              <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">Explanation:</h4>
-              <p className="text-blue-700 dark:text-blue-100 font-medium">{lastQuestion.explanation}</p>
-            </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{question.question}</h3>
+                  <div className="space-y-3 mb-4">
+                    {question.options.map((option: string, optionIndex: number) => {
+                      const isUserAnswer = userAnswer === optionIndex;
+                      const isCorrectAnswer = question.correct === optionIndex;
+                      let optionBg = 'bg-gray-100 dark:bg-gray-700';
+                      let optionText = 'text-gray-900 dark:text-gray-100';
+                      let optionFont = '';
+                      if (isCorrectAnswer) {
+                        optionBg = 'bg-green-100 dark:bg-green-900/40';
+                        optionText = 'text-green-700 dark:text-green-200';
+                        optionFont = 'font-bold';
+                      } else if (isUserAnswer && !isCorrectAnswer) {
+                        optionBg = 'bg-red-100 dark:bg-red-900/40';
+                        optionText = 'text-red-700 dark:text-red-200';
+                        optionFont = 'font-bold';
+                      } else if (isUserAnswer) {
+                        optionBg = 'bg-blue-100 dark:bg-blue-800/40';
+                        optionText = 'text-blue-700 dark:text-blue-200';
+                        optionFont = 'font-bold';
+                      }
+                      return (
+                        <div
+                          key={optionIndex}
+                          className={`p-4 rounded-xl border ${optionBg} border-gray-200 dark:border-gray-600 flex items-center gap-2 ${optionText} ${optionFont}`}
+                        >
+                          <span className="font-bold mr-2">{String.fromCharCode(65 + optionIndex)}.</span>
+                          <span>{option}</span>
+                          {isCorrectAnswer && <span className="ml-auto">✔</span>}
+                          {isUserAnswer && !isCorrectAnswer && <span className="ml-auto">✘</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg p-6 mt-2">
+                    <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">Explanation:</h4>
+                    <p className="text-blue-700 dark:text-blue-100 font-medium">{question.explanation}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
+            <Button onClick={restartTest} size="lg" className="px-8">
+              Take Another Test
+            </Button>
+            <Link to="/full-test">
+              <Button variant="outline" size="lg" className="px-8">
+                Try Full Test Mode
+              </Button>
+            </Link>
+            <Link to="/tutor">
+              <Button variant="outline" size="lg" className="px-8">
+                Get AI Tutoring
+              </Button>
+            </Link>
+            <Link to="/">
+              <Button variant="outline" size="lg" className="px-8">
+                Back to Dashboard
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
@@ -759,7 +867,7 @@ Student's question: ${userMessage.content}`;
           <div className="flex items-center space-x-2">
             <Brain className="h-7 w-7 text-blue-600" />
             <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">DECA AI Platform</span>
-          </div>
+                    </div>
           <div className="text-lg font-mono text-gray-700 dark:text-white flex items-center gap-2">
             <Clock className="h-5 w-5" /> {formatTime(timeLeft)}
           </div>
@@ -794,9 +902,9 @@ Student's question: ${userMessage.content}`;
                     >
                       <span className="font-bold mr-2">{String.fromCharCode(65 + idx)}.</span> {option}
                     </button>
-                  );
-                })}
-              </div>
+              );
+            })}
+          </div>
             </div>
             {/* Pagination & Navigation */}
             <div className="flex items-center justify-between w-full max-w-2xl mt-2">
@@ -899,8 +1007,8 @@ Student's question: ${userMessage.content}`;
                       ) : (
                         <Send className="h-4 w-4" />
                       )}
-                    </Button>
-                  </div>
+            </Button>
+          </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
                     💡 Press Enter to send • Enhanced with real DECA explanations
                   </p>

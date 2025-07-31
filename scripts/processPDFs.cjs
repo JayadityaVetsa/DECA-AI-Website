@@ -133,32 +133,31 @@ class DECAPDFProcessor {
     const cleanText = text
       .replace(/\r\n/g, '\n')
       .replace(/\r/g, '\n')
-      .replace(/\s+/g, ' ')
-      .trim();
+      .replace(/(\w)-\n(\w)/g, '$1$2')
+      .replace(/(\w) -\n (\w)/g, '$1$2')
+      .replace(/ {2,}/g, ' ');
     
     console.log(`🧹 Cleaned text length: ${cleanText.length}`);
     
     // Try multiple question patterns
     const patterns = [
-      // Standard format: "1. Question text"
-      /(\d+)\.\s*(.+?)(?=\n\s*[A-D][\.\)]\s*|\n\s*\d+\.\s*|$)/gs,
-      // Alternative format: "Question 1:"
-      /Question\s+(\d+):?\s*(.+?)(?=\n\s*[A-D][\.\)]\s*|\n\s*Question\s+\d+|$)/gs,
-      // Number in parentheses: "(1)"
-      /\((\d+)\)\s*(.+?)(?=\n\s*[A-D][\.\)]\s*|\n\s*\(\d+\)|$)/gs
+      // Standard format: "1. Question text A. Option B. Option..."
+      /(\d+)\.\s*([\s\S]+?)(?=A\.\s+[\s\S]+?B\.\s+[\s\S]+?C\.\s+[\s\S]+?D\.\s+[\s\S]+?)(?=^\d+\.\s|Answer Key|Explanations|RATIONALE)/m,
+      // Alternative format: "Question 1: ..."
+      /Question\s+(\d+):\s*([\s\S]+?)(?=A\.\s+[\s\S]+?B\.\s+[\s\S]+?C\.\s+[\s\S]+?D\.\s+[\s\S]+?)(?=^Question\s+\d+:|Answer Key|Explanations|RATIONALE)/m,
     ];
 
+    const questionsAndOptions = text.split(/(?=\d+\.\s)/).filter(q => q.trim());
+    
     let foundQuestions = [];
     
-    for (const pattern of patterns) {
-      const matches = [...cleanText.matchAll(pattern)];
-      if (matches.length > 0) {
-        console.log(`🎯 Found ${matches.length} question matches with pattern ${pattern.source.substring(0, 50)}...`);
-        foundQuestions = matches;
-        break;
-      }
+    for(const q of questionsAndOptions) {
+        const match = q.match(/(\d+)\.\s*([\s\S]+?)(?=A\.\s*)/)
+        if(match) {
+            foundQuestions.push(match)
+        }
     }
-
+    
     if (foundQuestions.length === 0) {
       console.log('🔍 No questions found with standard patterns, trying alternative extraction...');
       // Try to find any numbered items
@@ -211,31 +210,17 @@ class DECAPDFProcessor {
 
   extractOptionsForQuestion(text, questionNumber, questionText) {
     const options = { A: '', B: '', C: '', D: '' };
-    
-    // Find the section of text after this question
-    const questionIndex = text.indexOf(questionText);
-    if (questionIndex === -1) return options;
-    
-    const afterQuestion = text.substring(questionIndex + questionText.length);
-    
-    // Look for options in various formats
-    const optionPatterns = [
-      /([A-D])[\.\)]\s*(.+?)(?=\n\s*[A-D][\.\)]|\n\s*\d+[\.\)]|\n\s*Question|$)/gs,
-      /\(([A-D])\)\s*(.+?)(?=\n\s*\([A-D]\)|\n\s*\d+[\.\)]|\n\s*Question|$)/gs
-    ];
+    const questionStart = text.indexOf(questionText);
+    if (questionStart === -1) return options;
 
-    for (const pattern of optionPatterns) {
-      const matches = [...afterQuestion.matchAll(pattern)];
-      if (matches.length >= 4) { // Need at least 4 options
-        matches.slice(0, 4).forEach(match => {
-          const letter = match[1];
-          const text = match[2].trim();
-          if (['A', 'B', 'C', 'D'].includes(letter)) {
-            options[letter] = text;
-          }
-        });
-        break;
-      }
+    const fromQuestion = text.substring(questionStart);
+    const optionsMatch = fromQuestion.match(/A\.\s*([\s\S]+?)\s*B\.\s*([\s\S]+?)\s*C\.\s*([\s\S]+?)\s*D\.\s*([\s\S]+?)(?=\d+\.\s|Answer Key|RATIONALE|Explanations|$)/m);
+
+    if (optionsMatch) {
+      options.A = optionsMatch[1].trim();
+      options.B = optionsMatch[2].trim();
+      options.C = optionsMatch[3].trim();
+      options.D = optionsMatch[4].trim();
     }
     
     return options;

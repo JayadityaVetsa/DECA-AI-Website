@@ -1,73 +1,77 @@
-# Welcome to your Lovable project
+# DECA AI Prep
 
-## Project info
+A comprehensive AI-powered preparation platform for DECA competitions, featuring practice tests, intelligent tutoring, and performance analytics.
 
-**URL**: https://lovable.dev/projects/16559200-5d7e-47ef-9555-55bd2ab46197
+## Features
 
-## How can I edit this code?
+- **Practice Tests**: Take full-length practice exams with real DECA questions
+- **AI Tutor**: Get personalized explanations and help with specific topics
+- **Performance Analytics**: Track your progress and identify areas for improvement
+- **Study Materials**: Access curated study resources and performance indicators
+- **Community Forum**: Connect with other DECA students and share knowledge
 
-There are several ways of editing your application.
+## Getting Started
 
-**Use Lovable**
+### Prerequisites
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/16559200-5d7e-47ef-9555-55bd2ab46197) and start prompting.
+- Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Installation
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Navigate to the project directory
+cd deca-ai-prep-doc
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The application will be available at `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Available Scripts
 
-**Use GitHub Codespaces**
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run build:dev` - Build for development
+- `npm run lint` - Run ESLint
+- `npm run preview` - Preview production build
+- `npm run process-pdfs` - Process PDF question files
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Tech Stack
 
-## What technologies are used for this project?
+- **Frontend**: React 18 with TypeScript
+- **Build Tool**: Vite
+- **UI Components**: shadcn/ui
+- **Styling**: Tailwind CSS
+- **Database**: Firebase Firestore
+- **AI Integration**: Google Gemini API
+- **PDF Processing**: PDF.js
 
-This project is built with:
+## Project Structure
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```
+src/
+├── components/          # Reusable UI components
+├── pages/              # Application pages
+├── lib/                # Utility functions and services
+├── hooks/              # Custom React hooks
+└── data/               # Static data and extracted content
+```
 
-## How can I deploy this project?
+## Contributing
 
-Simply open [Lovable](https://lovable.dev/projects/16559200-5d7e-47ef-9555-55bd2ab46197) and click on Share -> Publish.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Can I connect a custom domain to my Lovable project?
+## License
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+This project is licensed under the MIT License.
